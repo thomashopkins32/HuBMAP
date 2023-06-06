@@ -7,7 +7,7 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from dataset import HuBMAP
-from models import UNet2D
+from models import UNet2d
 from utils import accuracy
 
 # PARAMETERS
@@ -25,7 +25,7 @@ torch.manual_seed(RNG)
 writer = SummaryWriter()
 train_data = HuBMAP(test=False)
 train_loader = DataLoader(train_data, batch_size=BATCH_SIZE, shuffle=True)
-model = UNet2D().to(DEVICE)
+model = UNet2d().to(DEVICE)
 loss_func = nn.CrossEntropyLoss()
 optimizer = optim.SGD(model.parameters(), lr=LR)
 global_step = 0
