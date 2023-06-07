@@ -76,6 +76,9 @@ class HuBMAP(Dataset):
         return mask
 
     def __getitem__(self, i):
+        # TODO: Remove glomerulus masks since they will be available in the test set
+        # Instead, we should remove any annotations within the glomerulus mask
+        # and ignore any predictions from our model in the region
         return {
             'image': self.transforms(self.images[i]),
             'blood_vessel_mask': self.blood_vessel_masks[i],
