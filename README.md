@@ -12,3 +12,4 @@ Hacking the Human Vasculature (Kaggle Competition)
     - Maybe one conv net and one transformer model?
     - Maybe just use dropout
 - Scale the loss on unsure labels by setting the labeled regions to `0.5`
+- A lot more unlabeled images than labeled ones. Right now, I don't have any ideas for utilizing these.

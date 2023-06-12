@@ -30,17 +30,6 @@ loss_func = nn.CrossEntropyLoss()
 optimizer = optim.SGD(model.parameters(), lr=LR)
 global_step = 0
 
-'''
-images, labels = next(iter(train_loader))
-x = images.to(DEVICE)
-y = labels.long().to(DEVICE)
-logits = model(x)
-loss = loss_func(logits, y)
-grid = torchvision.utils.make_grid(images)
-writer.add_image('images', grid, 0)
-writer.add_graph(model, images)
-'''
-
 for e in tqdm(range(EPOCHS)):
     for i, (x, y) in enumerate(train_loader):
         x = x.to(DEVICE)
