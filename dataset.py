@@ -80,7 +80,7 @@ class HuBMAP(Dataset):
         # Instead, we should remove any annotations within the glomerulus mask
         # and ignore any predictions from our model in the region
         return {
-            'image': self.transforms(self.images[i]).half(),
+            'image': self.transforms(self.images[i]),
             'blood_vessel_mask': self.blood_vessel_masks[i].long(),
             'glomerulus_mask': self.glomerulus_masks[i].long(),
             'unsure_mask': self.unsure_masks[i].long(),
