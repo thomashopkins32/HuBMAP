@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib.pyplot as plt
 from skimage import measure
 import torch
 
@@ -32,33 +33,51 @@ def mAP(predictions, targets, iou_threshold=0.6):
     mAP : float
         Mean average precision score
     '''
-    true_positives = []
-    false_positives = []
     total_targets = len(targets)
 
-    intersection = torch.logical_and(predictions, targets)
-    union = torch.logical_or(predictions, targets)
+    preds = predictions.cpu().detach().numpy()
+    labels = targets.cpu().detach().numpy()
 
-    intersection_labels = measure.label(intersection)
-    union_labels = measure.label(union)
+    intersection = np.logical_and(preds, labels).astype(int)
+    union = np.logical_or(preds, labels).astype(int)
 
-    num_intersecting_regions = np.max(intersection_labels, axis=(1, 2))
-    num_union_regions = np.max(union_labels, axis=(1, 2))
+    average_precisions = []
+    for i in range(len(intersection)):
+        true_positives = []
+        false_positives = []
+        intersection_labels, intersection_count = measure.label(intersection[i], return_num=True)
+        union_labels, union_count = measure.label(union[i], return_num=True)
 
-    ious = num_intersecting_regions / num_union_regions
+        print(intersection_labels)
+        print(intersection_count)
+        print(union_labels)
+        print(union_count)
 
-    for i in range(len(predictions)):
-        best_iou = np.max(ious[i])
-        best_index = np.argmax(ious[i])
+        ious = []
+        for j in range(1, intersection_count + 1):
+            intersection_count = np.count_nonzero(intersection_labels == j)
+            union_count = np.count_nonzero(union_labels == j)
+            
+            iou = intersection_count / union_count
+            ious.append(iou)
 
-        if best_iou >= iou_threshold and best_index not in true_positives:
-            true_positives.append(best_index)
-        else:
-            false_positives.append(predictions[i])
+        print(ious)
 
-    precision = len(true_positives) / (len(true_positives) + len(false_positives))
-    recall = len(true_positives) / total_targets
+        # TODO: Fix this part, not sure why we take the maximum here
+        for j in range(len(ious)):
+            best_iou = np.max(ious[j])
+            best_index = np.argmax(ious[j])
 
-    ap = precision * recall
+            if best_iou >= iou_threshold and best_index not in true_positives:
+                true_positives.append(best_index)
+            else:
+                false_positives.append(j)
 
-    return ap
+        precision = len(true_positives) / (len(true_positives) + len(false_positives))
+        recall = len(true_positives) / total_targets
+
+        ap = precision * recall
+
+        average_precisions.append(ap)
+
+    return np.mean(average_precisions)

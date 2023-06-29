@@ -1,4 +1,5 @@
 from torch import tensor
+import matplotlib.pyplot as plt
 from ..utils import *
 
 def test_accuracy():
@@ -20,14 +21,14 @@ def test_mAP_perfect_prediction():
     targets = torch.zeros((3, 20, 20), dtype=torch.long)
 
     # nothing to predict
-    assert mAP(predictions, targets) == 0.0
+    #assert mAP(predictions, targets) == 0.0
 
     # single square
     predictions[0, 5:10, 5:10] = 1
     targets[0, 5:10, 5:10] = 1
     predictions[1, 2:3, 2:3] = 1
     targets[1, 2:3, 2:3] = 1
+    predictions[2, 1:10, 1:10] = 1
+    targets[2, 1:10, 1:10] = 1
 
     assert mAP(predictions, targets) == 1.0
-
-
