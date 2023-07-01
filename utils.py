@@ -33,8 +33,6 @@ def mAP(predictions, targets, iou_threshold=0.6):
     mAP : float
         Mean average precision score
     '''
-    total_targets = len(targets)
-
     preds = predictions.cpu().detach().numpy()
     labels = targets.cpu().detach().numpy()
 
@@ -42,39 +40,40 @@ def mAP(predictions, targets, iou_threshold=0.6):
     union = np.logical_or(preds, labels).astype(int)
 
     average_precisions = []
-    for i in range(len(intersection)):
-        true_positives = []
-        false_positives = []
-        intersection_labels, intersection_count = measure.label(intersection[i], return_num=True)
-        union_labels, union_count = measure.label(union[i], return_num=True)
+    for img_idx in range(len(intersection)):
+        true_positives = 0
+        false_positives = 0
+        intersection_labels, intersection_region_count = measure.label(intersection[img_idx], return_num=True)
+        union_labels, union_region_count = measure.label(union[img_idx], return_num=True)
 
-        print(intersection_labels)
-        print(intersection_count)
-        print(union_labels)
-        print(union_count)
+        if intersection_region_count == 0:
+            break
 
         ious = []
-        for j in range(1, intersection_count + 1):
+        for j in range(1, intersection_region_count + 1):
             intersection_count = np.count_nonzero(intersection_labels == j)
             union_count = np.count_nonzero(union_labels == j)
             
             iou = intersection_count / union_count
+
             ious.append(iou)
 
         print(ious)
 
-        # TODO: Fix this part, not sure why we take the maximum here
-        for j in range(len(ious)):
-            best_iou = np.max(ious[j])
-            best_index = np.argmax(ious[j])
-
-            if best_iou >= iou_threshold and best_index not in true_positives:
-                true_positives.append(best_index)
+        for iou in ious:
+            if iou >= iou_threshold:
+                true_positives += 1
             else:
-                false_positives.append(j)
+                false_positives += 1
 
-        precision = len(true_positives) / (len(true_positives) + len(false_positives))
-        recall = len(true_positives) / total_targets
+        print(true_positives)
+        print(false_positives)
+
+        precision = true_positives / (true_positives + false_positives)
+        recall = true_positives / intersection_region_count
+
+        print(precision)
+        print(recall)
 
         ap = precision * recall
 
