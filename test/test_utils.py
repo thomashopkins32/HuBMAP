@@ -36,7 +36,39 @@ def test_mAP_perfect_prediction():
     # two squares
     predictions[0, 1:3, 1:3] = 1
     targets[0, 1:3, 1:3] = 1
+    predictions[0, 5:10, 5:10] = 1
+    targets[0, 5:10, 5:10] = 1
     predictions[1, 10:19, 10:19] = 1
     targets[1, 10:19, 10:19] = 1
+    predictions[1, 1:8, 10:19] = 1
+    targets[1, 1:8, 10:19] = 1
+    predictions[2, 10:19, 1:8] = 1
+    targets[2, 10:19, 1:8] = 1
+    predictions[2, 1:8, 10:19] = 1
+    targets[2, 1:8, 10:19] = 1
 
     assert mAP(predictions, targets) == 1.0
+
+
+def test_mAP_imperfect_prediction():
+
+    # 5, 20x20 image masks
+    predictions = torch.zeros((3, 20, 20), dtype=torch.long)
+    targets = torch.zeros((3, 20, 20), dtype=torch.long)
+
+    # single square per image
+    predictions[0, 5:10, 5:10] = 1
+    targets[0, 9:10, 9:10] = 1
+    predictions[1, 2:3, 2:3] = 1
+    targets[1, 2:3, 2:3] = 1
+    predictions[2, 1:10, 1:10] = 1
+    targets[2, 1:10, 1:10] = 1
+
+    assert np.isclose(mAP(predictions, targets), 2 / 3)
+
+    # first image has two squares
+    # one matching one not
+    predictions[0, 1:3, 1:3] = 1
+    targets[0, 1:3, 1:3] = 1
+
+    assert np.isclose(mAP(predictions, targets), 2.25 / 3)

@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 from skimage import measure
 import torch
 
+
 def accuracy(logits, labels):
     preds = torch.argmax(logits, dim=1)
     return torch.count_nonzero(preds == labels) / preds.shape[0]
@@ -15,68 +16,57 @@ def get_model_gpu_memory(model):
     return memory_allocated, memory_cached
 
 
-def mAP(predictions, targets, iou_threshold=0.6):
+def average_precision(prediction, target, iou_threshold=0.6):
     '''
-    Computes the mean average precision (mAP) for an instance segmentation task.
+    Computes the average precision (AP) for an instance segmentation task on a single image.
 
     Parameters
     ----------
-    predictions : torch.tensor
-        Boolean prediction masks
-    targets : torch.tensor
-        Boolean ground-truth masks
+    prediction : np.array
+        Boolean prediction mask
+    target : np.array
+        Boolean ground-truth mask
     iou_threshold : float, optional
         Threshold at which to count predictions as positive predictions
 
     Returns
     -------
-    mAP : float
-        Mean average precision score
+    AP : float
+        Average precision score
     '''
-    preds = predictions.cpu().detach().numpy()
-    labels = targets.cpu().detach().numpy()
+    pred_regions, pred_region_count = measure.label(prediction, return_num=True)
+    target_regions, target_region_count = measure.label(target, return_num=True)
+    true_positives = 0
+    false_positives = 0
+    for p in range(1, pred_region_count + 1):
+        pred_region_mask = pred_regions == p
+        max_iou = 0.0
+        for t in range(1, target_region_count + 1):
+            target_region_mask = target_regions == t
+            # Compute IoU this region pair
+            intersection = np.logical_and(pred_region_mask, target_region_mask)
+            union = np.logical_or(pred_region_mask, target_region_mask)
+            intersection_count = np.count_nonzero(intersection)
+            union_count = np.count_nonzero(union)
+            if intersection_count > 0 and union_count > 0:
+                iou = intersection_count / union_count
+                max_iou = max(max_iou, iou)
+        if max_iou > iou_threshold:
+            true_positives += 1
+        else:
+            false_positives += 1
+    if (true_positives == 0 and false_positives == 0) or target_region_count == 0:
+        return 0.0
+    precision = true_positives / (true_positives + false_positives)
+    recall = true_positives / target_region_count
 
-    intersection = np.logical_and(preds, labels).astype(int)
-    union = np.logical_or(preds, labels).astype(int)
+    return precision * recall
 
-    average_precisions = []
-    for img_idx in range(len(intersection)):
-        true_positives = 0
-        false_positives = 0
-        intersection_labels, intersection_region_count = measure.label(intersection[img_idx], return_num=True)
-        union_labels, union_region_count = measure.label(union[img_idx], return_num=True)
 
-        if intersection_region_count == 0:
-            break
-
-        ious = []
-        for j in range(1, intersection_region_count + 1):
-            intersection_count = np.count_nonzero(intersection_labels == j)
-            union_count = np.count_nonzero(union_labels == j)
-            
-            iou = intersection_count / union_count
-
-            ious.append(iou)
-
-        print(ious)
-
-        for iou in ious:
-            if iou >= iou_threshold:
-                true_positives += 1
-            else:
-                false_positives += 1
-
-        print(true_positives)
-        print(false_positives)
-
-        precision = true_positives / (true_positives + false_positives)
-        recall = true_positives / intersection_region_count
-
-        print(precision)
-        print(recall)
-
-        ap = precision * recall
-
-        average_precisions.append(ap)
-
-    return np.mean(average_precisions)
+def mAP(predictions, targets, iou_threshold=0.6):
+    averages = 0.0
+    predictions = predictions.cpu().detach().numpy()
+    targets = targets.cpu().detach().numpy()
+    for p, t in zip(predictions, targets):
+        averages += average_precision(p, t, iou_threshold=iou_threshold)
+    return averages / len(predictions)
