@@ -72,3 +72,20 @@ def test_mAP_imperfect_prediction():
     targets[0, 1:3, 1:3] = 1
 
     assert np.isclose(mAP(predictions, targets), 2.25 / 3)
+
+
+def test_softmax():
+
+    logits = torch.randn((5, 2, 512, 512))
+
+    preds = torch.softmax(logits, dim=1)
+
+    assert preds.shape == (5, 2, 512, 512)
+    total = torch.sum(preds, dim=1)
+    assert total.shape == (5, 512, 512)
+    assert torch.allclose(total, torch.ones((5, 512, 512)))
+
+    predictions = torch.argmax(preds, dim=1).type(torch.long)
+
+    assert predictions.shape == (5, 512, 512)
+    assert predictions.dtype == torch.long

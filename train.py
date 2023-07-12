@@ -17,7 +17,7 @@ LR = 3e-4
 WD = 0.0
 MOMENTUM = 0.0
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
-VALID_STEP = 10
+VALID_STEP = 2
 RNG = 16
 EPOCHS = 10
 
@@ -33,15 +33,9 @@ train_data, valid_data = random_split(dataset, [0.9, 0.1], generator=generator)
 train_loader = DataLoader(train_data, batch_size=BATCH_SIZE, shuffle=True, pin_memory=False)
 valid_loader = DataLoader(valid_data, batch_size=1, shuffle=False, pin_memory=False)
 model = UNet2d().to(DEVICE)
-'''
-allocated, cached = get_model_gpu_memory(model)
-print(f"GPU memory allocated: {allocated:.2f} MB")
-print(f"GPU memory cached: {cached:.2f} MB")
-'''
 loss_func = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr=LR)
 #scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max')
-global_step = 0
 
 if SHOW_MODEL:
     images, labels = next(iter(train_loader))
@@ -58,34 +52,10 @@ if SHOW_SAMPLES:
     writer.add_image('images', grid, 0)
 
 for e in tqdm(range(EPOCHS)):
-    for i, d in tqdm(enumerate(train_loader)):
-        x = d['image']
-        y = d['blood_vessel_mask']
-        glom = d['glomerulus_mask']
-        uns = d['unsure_mask']
-        x = x.to(DEVICE)
-        y = y.long().to(DEVICE)
-        logits = model(x)
-        loss = loss_func(logits, y)
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-        writer.add_scalar("Loss/train", loss.item(), global_step)
-
-        if i % VALID_STEP == 0:
-            global_step += 1
-    model.eval()
-    with torch.no_grad():
-        for i, d in enumerate(valid_loader):
-            x = d['image']
-            y = d['blood_vessel_mask']
-            glom = d['glomerulus_mask']
-            uns = d['unsure_mask']
-            x = x.to(DEVICE)
-            y = y.to(DEVICE)
-            logits = model(x)
-            loss = loss_func(logits, y)
-            writer.add_scalar("Loss/valid", loss.item(), global_step)
-    model.train()
+    if e % VALID_STEP == 0:
+        train_one_epoch(model, train_loader, loss_func, optimizer, writer=writer, device=DEVICE)
+        validate_one_epoch(model, valid_loader, loss_func, writer, device=DEVICE)
+    else:
+        train_one_epoch(model, train_loader, loss_func, optimizer, device=DEVICE)
     # scheduler.step(acc)
 writer.close()

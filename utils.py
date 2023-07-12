@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from skimage import measure
 import torch
+from tqdm import tqdm
 
 
 def accuracy(logits, labels):
@@ -70,3 +71,46 @@ def mAP(predictions, targets, iou_threshold=0.6):
     for p, t in zip(predictions, targets):
         averages += average_precision(p, t, iou_threshold=iou_threshold)
     return averages / len(predictions)
+
+
+def logits_to_mask(logits):
+    return torch.argmax(torch.softmax(logits, dim=1), dim=1).type(torch.long)
+
+
+def train_one_epoch(model, train_loader, loss_func, optimizer, writer=None, device='cpu', **kwargs):
+    model.train()
+    for d in tqdm(train_loader):
+        x = d['image']
+        y = d['blood_vessel_mask']
+        glom = d['glomerulus_mask']
+        uns = d['unsure_mask']
+        x = x.to(device)
+        y = y.long().to(device)
+        logits = model(x)
+        loss = loss_func(logits, y)
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+        if writer:
+            predictions = logits_to_mask(logits)
+            mAP_value = mAP(predictions, y, **kwargs)
+            writer.add_scalar("Loss/train", loss.item())
+            writer.add_scalar("mAP/train", mAP_value)
+
+
+def validate_one_epoch(model, valid_loader, loss_func, writer, device='cpu', **kwargs):
+    model.eval()
+    with torch.no_grad():
+        for i, d in enumerate(valid_loader):
+            x = d['image']
+            y = d['blood_vessel_mask']
+            glom = d['glomerulus_mask']
+            uns = d['unsure_mask']
+            x = x.to(device)
+            y = y.to(device)
+            logits = model(x)
+            loss = loss_func(logits, y)
+            predictions = logits_to_mask(logits)
+            mAP_value = mAP(predictions, y, **kwargs)
+            writer.add_scalar("Loss/valid", loss.item())
+            writer.add_scalar("mAP/valid", mAP_value)
