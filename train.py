@@ -13,12 +13,12 @@ from utils import *
 
 # PARAMETERS
 BATCH_SIZE = 4
-LR = 3e-4
+LR = 1e-4
 WD = 0.0
 MOMENTUM = 0.0
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
-VALID_STEP = 2
-RNG = 16
+VALID_STEP = 5
+RNG = 32
 EPOCHS = 10
 
 SHOW_MODEL = False
@@ -53,9 +53,10 @@ if SHOW_SAMPLES:
 
 for e in tqdm(range(EPOCHS)):
     if e % VALID_STEP == 0:
-        train_one_epoch(model, train_loader, loss_func, optimizer, writer=writer, device=DEVICE)
-        validate_one_epoch(model, valid_loader, loss_func, writer, device=DEVICE)
+        train_one_epoch(e, model, train_loader, loss_func, optimizer, writer=writer, device=DEVICE)
+        validate_one_epoch(e, model, valid_loader, loss_func, writer, device=DEVICE)
     else:
-        train_one_epoch(model, train_loader, loss_func, optimizer, device=DEVICE)
+        train_one_epoch(e, model, train_loader, loss_func, optimizer, device=DEVICE)
+    writer.add_scalar('gpu_memory_usage', current_gpu_memory_usage(DEVICE), global_step=e)
     # scheduler.step(acc)
 writer.close()
