@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from skimage import measure
 import torch
+from tqdm import tqdm
 
 
 def accuracy(logits, labels):
@@ -9,11 +10,48 @@ def accuracy(logits, labels):
     return torch.count_nonzero(preds == labels) / preds.shape[0]
 
 
-def get_model_gpu_memory(model):
-    torch.cuda.empty_cache()
-    memory_allocated = torch.cuda.memory_allocated() / 1024 ** 2
-    memory_cached = torch.cuda.memory_cached() / 1024 ** 2
-    return memory_allocated, memory_cached
+def memory_usage_stats(model, optimizer, batch_size=1, device='cuda'):
+    print(f'Starting memory: {torch.cuda.memory_allocated(device) * 1e-6}')
+    model.to(device)
+    print(f'After model sent to {device}: {torch.cuda.memory_allocated(device) * 1e-6}')
+    for i in range(3):
+        sample = torch.randn((batch_size, 3, 512, 512))
+        print(f'Step {i}')
+        before = torch.cuda.memory_allocated(device) * 1e-6
+        out = model(sample.to(device)).sum()
+        after = torch.cuda.memory_allocated(device) * 1e-6
+        print(f'After forward pass: {after}')
+        print(f'Memory used by forward pass: {after - before}')
+        out.backward()
+        after = torch.cuda.memory_allocated(device) * 1e-6
+        print(f'After backward pass: {after}')
+        optimizer.step()
+        print(f'After optimizer step: {torch.cuda.memory_allocated(device) * 1e-6}')
+
+
+def memory_usage_stats_grad_scaler(model, optimizer, batch_size=1, device='cuda'):
+    if device != 'cuda':
+        print('This function requires device to be "cuda".')
+        return
+    print(f'Starting memory: {torch.cuda.memory_allocated(device) * 1e-6}')
+    model.to(device)
+    print(f'After model sent to {device}: {torch.cuda.memory_allocated(device) * 1e-6}')
+    scaler = torch.cuda.amp.GradScaler()
+    for i in range(3):
+        sample = torch.randn((batch_size, 3, 512, 512))
+        print(f'Step {i}')
+        before = torch.cuda.memory_allocated(device) * 1e-6
+        with torch.cuda.amp.autocast(dtype=torch.float16):
+            out = model(sample.to(device)).sum()
+        after = torch.cuda.memory_allocated(device) * 1e-6
+        print(f'After forward pass: {after}')
+        print(f'Memory used by forward pass: {after - before}')
+        scaler.scale(out).backward()
+        after = torch.cuda.memory_allocated(device) * 1e-6
+        print(f'After backward pass: {after}')
+        scaler.step(optimizer)
+        print(f'After optimizer step: {torch.cuda.memory_allocated(device) * 1e-6}')
+        scaler.update()
 
 
 def average_precision(prediction, target, iou_threshold=0.6):
@@ -70,3 +108,46 @@ def mAP(predictions, targets, iou_threshold=0.6):
     for p, t in zip(predictions, targets):
         averages += average_precision(p, t, iou_threshold=iou_threshold)
     return averages / len(predictions)
+
+
+def logits_to_mask(logits):
+    return torch.argmax(torch.softmax(logits, dim=1), dim=1).type(torch.long)
+
+
+def train_one_epoch(epoch, model, train_loader, loss_func, optimizer, writer=None, device='cpu', **kwargs):
+    model.train()
+    for d in train_loader:
+        x = d['image']
+        y = d['blood_vessel_mask']
+        glom = d['glomerulus_mask']
+        uns = d['unsure_mask']
+        x = x.to(device)
+        y = y.long().to(device)
+        logits = model(x)
+        loss = loss_func(logits, y)
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+        if writer:
+            predictions = logits_to_mask(logits)
+            mAP_value = mAP(predictions, y, **kwargs)
+            writer.add_scalar("Loss/train", loss.item(), global_step=epoch)
+            writer.add_scalar("mAP/train", mAP_value, global_step=epoch)
+
+
+def validate_one_epoch(epoch, model, valid_loader, loss_func, writer, device='cpu', **kwargs):
+    model.eval()
+    with torch.no_grad():
+        for i, d in enumerate(valid_loader):
+            x = d['image']
+            y = d['blood_vessel_mask']
+            glom = d['glomerulus_mask']
+            uns = d['unsure_mask']
+            x = x.to(device)
+            y = y.to(device)
+            logits = model(x)
+            loss = loss_func(logits, y)
+            predictions = logits_to_mask(logits)
+            mAP_value = mAP(predictions, y, **kwargs)
+            writer.add_scalar("Loss/valid", loss.item(), global_step=epoch)
+            writer.add_scalar("mAP/valid", mAP_value, global_step=epoch)
