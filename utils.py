@@ -10,8 +10,48 @@ def accuracy(logits, labels):
     return torch.count_nonzero(preds == labels) / preds.shape[0]
 
 
-def current_gpu_memory_usage(device):
-    return torch.cuda.max_memory_allocated(device=device)
+def memory_usage_stats(model, optimizer, batch_size=1, device='cuda'):
+    print(f'Starting memory: {torch.cuda.memory_allocated(device) * 1e-6}')
+    model.to(device)
+    print(f'After model sent to {device}: {torch.cuda.memory_allocated(device) * 1e-6}')
+    for i in range(3):
+        sample = torch.randn((batch_size, 3, 512, 512))
+        print(f'Step {i}')
+        before = torch.cuda.memory_allocated(device) * 1e-6
+        out = model(sample.to(device)).sum()
+        after = torch.cuda.memory_allocated(device) * 1e-6
+        print(f'After forward pass: {after}')
+        print(f'Memory used by forward pass: {after - before}')
+        out.backward()
+        after = torch.cuda.memory_allocated(device) * 1e-6
+        print(f'After backward pass: {after}')
+        optimizer.step()
+        print(f'After optimizer step: {torch.cuda.memory_allocated(device) * 1e-6}')
+
+
+def memory_usage_stats_grad_scaler(model, optimizer, batch_size=1, device='cuda'):
+    if device != 'cuda':
+        print('This function requires device to be "cuda".')
+        return
+    print(f'Starting memory: {torch.cuda.memory_allocated(device) * 1e-6}')
+    model.to(device)
+    print(f'After model sent to {device}: {torch.cuda.memory_allocated(device) * 1e-6}')
+    scaler = torch.cuda.amp.GradScaler()
+    for i in range(3):
+        sample = torch.randn((batch_size, 3, 512, 512))
+        print(f'Step {i}')
+        before = torch.cuda.memory_allocated(device) * 1e-6
+        with torch.cuda.amp.autocast(dtype=torch.float16):
+            out = model(sample.to(device)).sum()
+        after = torch.cuda.memory_allocated(device) * 1e-6
+        print(f'After forward pass: {after}')
+        print(f'Memory used by forward pass: {after - before}')
+        scaler.scale(out).backward()
+        after = torch.cuda.memory_allocated(device) * 1e-6
+        print(f'After backward pass: {after}')
+        scaler.step(optimizer)
+        print(f'After optimizer step: {torch.cuda.memory_allocated(device) * 1e-6}')
+        scaler.update()
 
 
 def average_precision(prediction, target, iou_threshold=0.6):

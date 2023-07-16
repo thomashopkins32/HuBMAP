@@ -57,6 +57,6 @@ for e in tqdm(range(EPOCHS)):
         validate_one_epoch(e, model, valid_loader, loss_func, writer, device=DEVICE)
     else:
         train_one_epoch(e, model, train_loader, loss_func, optimizer, device=DEVICE)
-    writer.add_scalar('gpu_memory_usage', current_gpu_memory_usage(DEVICE), global_step=e)
+    writer.add_scalar('gpu_memory_usage', torch.cuda.memory_allocated(DEVICE), global_step=e)
     # scheduler.step(acc)
 writer.close()

@@ -1,6 +1,8 @@
 import torch
 import torch.nn as nn
 
+from utils import *
+
 
 class ConvBlock(nn.Module):
     def __init__(self, in_channels, out_channels):
@@ -77,9 +79,5 @@ class UNet2d(nn.Module):
 
 if __name__ == '__main__':
     model = UNet2d()
-    x = torch.randn((10, 3, 512, 512))
-    out = model(x)
-    print(f"X Shape: {x.shape}")
-    print(f"X: {x}")
-    print(f"Out Shape: {out.shape}")
-    print(f"Out: {out}")
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+    memory_usage_stats(model, optimizer, batch_size=4, device='cuda')
