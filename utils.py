@@ -117,22 +117,22 @@ def logits_to_mask(logits):
 def train_one_epoch(epoch, model, train_loader, loss_func, optimizer, writer=None, device='cpu', **kwargs):
     model.train()
     for d in train_loader:
+        optimizer.zero_grad()
+        # TODO: Check if image or mask need to be transposed.
         x = d['image']
-        y = d['blood_vessel_mask']
-        glom = d['glomerulus_mask']
-        uns = d['unsure_mask']
+        y = d['mask']
         x = x.to(device)
         y = y.long().to(device)
         logits = model(x)
         loss = loss_func(logits, y)
-        optimizer.zero_grad()
         loss.backward()
         optimizer.step()
         if writer:
-            predictions = logits_to_mask(logits)
-            mAP_value = mAP(predictions, y, **kwargs)
-            writer.add_scalar("Loss/train", loss.item(), global_step=epoch)
-            writer.add_scalar("mAP/train", mAP_value, global_step=epoch)
+            with torch.no_grad():
+                predictions = logits_to_mask(logits)
+                mAP_value = mAP(predictions, y, **kwargs)
+                writer.add_scalar("Loss/train", loss.item(), global_step=epoch)
+                writer.add_scalar("mAP/train", mAP_value, global_step=epoch)
 
 
 def validate_one_epoch(epoch, model, valid_loader, loss_func, writer, device='cpu', **kwargs):
@@ -140,9 +140,7 @@ def validate_one_epoch(epoch, model, valid_loader, loss_func, writer, device='cp
     with torch.no_grad():
         for i, d in enumerate(valid_loader):
             x = d['image']
-            y = d['blood_vessel_mask']
-            glom = d['glomerulus_mask']
-            uns = d['unsure_mask']
+            y = d['mask']
             x = x.to(device)
             y = y.to(device)
             logits = model(x)

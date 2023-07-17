@@ -47,7 +47,7 @@ class UNet2d(nn.Module):
         self.conv8 = ConvBlock(256, 128)
         self.upconv4 = nn.ConvTranspose2d(128, 64, kernel_size=2, stride=2)
         self.conv9 = ConvBlock(128, 64)
-        self.conv_out = nn.Conv2d(64, 2, kernel_size=1)
+        self.conv_out = nn.Conv2d(64, 3, kernel_size=1)
 
     def forward(self, xx):
         # Down
