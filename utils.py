@@ -27,6 +27,7 @@ def memory_usage_stats(model, optimizer, batch_size=1, device='cuda'):
         print(f'After backward pass: {after}')
         optimizer.step()
         print(f'After optimizer step: {torch.cuda.memory_allocated(device) * 1e-6}')
+    torch.cuda.empty_cache()
 
 
 def memory_usage_stats_grad_scaler(model, optimizer, batch_size=1, device='cuda'):
@@ -52,6 +53,7 @@ def memory_usage_stats_grad_scaler(model, optimizer, batch_size=1, device='cuda'
         scaler.step(optimizer)
         print(f'After optimizer step: {torch.cuda.memory_allocated(device) * 1e-6}')
         scaler.update()
+    torch.cuda.empty_cache()
 
 
 def average_precision(prediction, target, iou_threshold=0.6):
@@ -110,8 +112,8 @@ def mAP(predictions, targets, iou_threshold=0.6):
     return averages / len(predictions)
 
 
-def logits_to_mask(logits):
-    return torch.argmax(torch.softmax(logits, dim=1), dim=1).type(torch.long)
+def logits_to_blood_vessel_mask(logits):
+    return (torch.argmax(torch.softmax(logits, dim=1), dim=1) == 2).type(torch.long)
 
 
 def train_one_epoch(epoch, model, train_loader, loss_func, optimizer, writer=None, device='cpu', **kwargs):
@@ -128,7 +130,7 @@ def train_one_epoch(epoch, model, train_loader, loss_func, optimizer, writer=Non
         optimizer.step()
         if writer:
             with torch.no_grad():
-                predictions = logits_to_mask(logits)
+                predictions = logits_to_blood_vessel_mask(logits)
                 mAP_value = mAP(predictions, y, **kwargs)
                 writer.add_scalar("Loss/train", loss.item(), global_step=epoch)
                 writer.add_scalar("mAP/train", mAP_value, global_step=epoch)
@@ -144,7 +146,7 @@ def validate_one_epoch(epoch, model, valid_loader, loss_func, writer, device='cp
             y = y.to(device)
             logits = model(x)
             loss = loss_func(logits, y)
-            predictions = logits_to_mask(logits)
+            predictions = logits_to_blood_vessel_mask(logits)
             mAP_value = mAP(predictions, y, **kwargs)
             writer.add_scalar("Loss/valid", loss.item(), global_step=epoch)
             writer.add_scalar("mAP/valid", mAP_value, global_step=epoch)
