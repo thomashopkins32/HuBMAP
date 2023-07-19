@@ -20,6 +20,7 @@ DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 VALID_STEP = 5
 RNG = 32
 EPOCHS = 10
+INCLUDE_UNSURE = True
 
 SHOW_MODEL = False
 SHOW_SAMPLES = False
@@ -27,7 +28,7 @@ SHOW_SAMPLES = False
 torch.manual_seed(RNG)
 
 writer = SummaryWriter(max_queue=1000, flush_secs=300)
-dataset = HuBMAP()
+dataset = HuBMAP(include_unsure=INCLUDE_UNSURE)
 generator = torch.Generator().manual_seed(RNG)
 train_data, valid_data = random_split(dataset, [0.9, 0.1], generator=generator)
 train_loader = DataLoader(train_data, batch_size=BATCH_SIZE, shuffle=True, pin_memory=False)
