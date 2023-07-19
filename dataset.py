@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 
 class HuBMAP(Dataset):
     ''' Training dataset for the HuBMAP Kaggle Competition '''
-    def __init__(self, data_dir=os.path.join('.', 'data')):
+    def __init__(self, data_dir=os.path.join('.', 'data'), include_unsure=False):
         self.data_dir = data_dir
         # Load in the training labels
         with open(os.path.join(data_dir, 'polygons.jsonl'), 'r') as polygons_file:
@@ -25,7 +25,7 @@ class HuBMAP(Dataset):
         self.images = []
         self.masks = [] # target structure
         print("Loading in images and converting annotations to polygon masks...")
-        for poly in tqdm(self.polygons[:10]):
+        for poly in tqdm(self.polygons):
             id = poly['id']
             # Get image using id
             image = Image.open(os.path.join(data_dir, 'train', f'{id}.tif'))
@@ -53,6 +53,9 @@ class HuBMAP(Dataset):
                 else:
                     unsure_coords.append(coordinates) 
             mask = self.coordinates_to_mask([item for sublist in glomerulus_coords for item in sublist])
+            if include_unsure and unsure_coords is not None and len(unsure_coords) > 0:
+                uns_coords = torch.tensor([item for sublist in unsure_coords for item in sublist])
+                mask[uns_coords[:, 1], uns_coords[:, 0]] = 2
             bv_coords = torch.tensor([item for sublist in blood_vessel_coords for item in sublist])
             # coordinates are (x, y) like a grid
             mask[bv_coords[:, 1], bv_coords[:, 0]] = 2
