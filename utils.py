@@ -118,7 +118,6 @@ def train_one_epoch(epoch, model, train_loader, loss_func, optimizer, writer=Non
     model.train()
     for d in train_loader:
         optimizer.zero_grad()
-        # TODO: Check if image or mask need to be transposed.
         x = d['image']
         y = d['mask']
         x = x.to(device)

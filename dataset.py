@@ -25,7 +25,7 @@ class HuBMAP(Dataset):
         self.images = []
         self.masks = [] # target structure
         print("Loading in images and converting annotations to polygon masks...")
-        for poly in tqdm(self.polygons):
+        for poly in tqdm(self.polygons[:10]):
             id = poly['id']
             # Get image using id
             image = Image.open(os.path.join(data_dir, 'train', f'{id}.tif'))
@@ -53,16 +53,9 @@ class HuBMAP(Dataset):
                 else:
                     unsure_coords.append(coordinates) 
             mask = self.coordinates_to_mask([item for sublist in glomerulus_coords for item in sublist])
-            fig, (ax1, ax2, ax3) = plt.subplots(1, 3)
-            ax1.set_title("Before")
-            ax1.imshow(mask)
             bv_coords = torch.tensor([item for sublist in blood_vessel_coords for item in sublist])
-            mask[bv_coords[:, 0], bv_coords[:, 1]] = 2
-            ax2.set_title("After")
-            ax2.imshow(mask)
-            ax3.set_title("Image")
-            ax3.imshow(image)
-            plt.show()
+            # coordinates are (x, y) like a grid
+            mask[bv_coords[:, 1], bv_coords[:, 0]] = 2
             self.masks.append(mask)
         print("Done.")
         # Set up image transformations
@@ -76,7 +69,8 @@ class HuBMAP(Dataset):
             return torch.zeros((self.img_size, self.img_size), dtype=torch.bool)
         coords = torch.tensor(coordinates)
         mask = torch.zeros((self.img_size, self.img_size), dtype=torch.bool)
-        mask[coords[:, 0], coords[:, 1]] = True
+        # coordinates are (x, y) like a grid
+        mask[coords[:, 1], coords[:, 0]] = True
         return mask.type(torch.long)
 
     def __getitem__(self, i):
