@@ -1,6 +1,9 @@
+import base64
+import zlib
 import numpy as np
 import matplotlib.pyplot as plt
 from skimage import measure
+from pycocotools import _mask as coco_mask
 import torch
 from tqdm import tqdm
 
@@ -123,7 +126,7 @@ def train_one_epoch(epoch, model, train_loader, loss_func, optimizer, writer=Non
         x = d['image']
         y = d['mask']
         x = x.to(device)
-        y = y.long().to(device)
+        y = y.to(device)
         logits = model(x)
         loss = loss_func(logits, y)
         loss.backward()
@@ -131,7 +134,8 @@ def train_one_epoch(epoch, model, train_loader, loss_func, optimizer, writer=Non
         if writer:
             with torch.no_grad():
                 predictions = logits_to_blood_vessel_mask(logits)
-                mAP_value = mAP(predictions, y, **kwargs)
+                blood_vessel_gt = (y == 2).type(torch.long)
+                mAP_value = mAP(predictions, blood_vessel_gt, **kwargs)
                 writer.add_scalar("Loss/train", loss.item(), global_step=epoch)
                 writer.add_scalar("mAP/train", mAP_value, global_step=epoch)
 
@@ -147,6 +151,73 @@ def validate_one_epoch(epoch, model, valid_loader, loss_func, writer, device='cp
             logits = model(x)
             loss = loss_func(logits, y)
             predictions = logits_to_blood_vessel_mask(logits)
-            mAP_value = mAP(predictions, y, **kwargs)
+            blood_vessel_gt = (y == 2).type(torch.long)
+            mAP_value = mAP(predictions, blood_vessel_gt, **kwargs)
             writer.add_scalar("Loss/valid", loss.item(), global_step=epoch)
             writer.add_scalar("mAP/valid", mAP_value, global_step=epoch)
+
+
+def oid_mask_encoding(mask):
+    '''
+    Taken from https://gist.github.com/pculliton/209398a2a52867580c6103e25e55d93c
+    using the competition page
+    '''
+    # check input mask --
+    if mask.dtype != np.bool:
+        raise ValueError(
+            "encode_binary_mask expects a binary mask, received dtype == %s" %
+            mask.dtype)
+
+    mask = np.squeeze(mask)
+    if len(mask.shape) != 2:
+        raise ValueError(
+            "encode_binary_mask expects a 2d mask, received shape == %s" %
+            mask.shape)
+
+    # convert input mask to expected COCO API input --
+    mask_to_encode = mask.reshape(mask.shape[0], mask.shape[1], 1)
+    mask_to_encode = mask_to_encode.astype(np.uint8)
+    mask_to_encode = np.asfortranarray(mask_to_encode)
+
+    # RLE encode mask --
+    encoded_mask = coco_mask.encode(mask_to_encode)[0]["counts"]
+
+    # compress and base64 encoding --
+    binary_str = zlib.compress(encoded_mask, zlib.Z_BEST_COMPRESSION)
+    base64_str = base64.b64encode(binary_str)
+    return base64_str
+
+
+def kaggle_prediction(logits):
+    '''
+    Encodes the raw output of the model into the submission format
+    
+    Parameters
+    ----------
+    logits : torch.tensor
+        Raw output of the model with shape (3, 512, 512)
+    
+    Returns
+    -------
+    dict
+        Submission entry with the headers (id, height, width, prediction_string)
+    '''
+
+    # keep raw prediction probabilities
+    preds = torch.softmax(logits, dim=0)
+
+    # convert blood vessel predictions to the mask
+    prediction = logits_to_blood_vessel_mask(logits)
+
+    # label predicted connected components
+    pred_regions, pred_region_count = measure.label(prediction, return_num=True)
+
+    for p in len(pred_region_count):
+        # get the coordinates of the current region
+
+        # separate the binary mask
+
+        # encode the separated mask
+
+        # average the prediction probabilities of the current region
+        pass
