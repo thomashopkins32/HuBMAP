@@ -12,6 +12,7 @@ from models import *
 from utils import *
 
 # PARAMETERS
+RUN_NAME = 'tesing_run'
 BATCH_SIZE = 4
 LR = 1e-4
 WD = 0.0
@@ -20,10 +21,10 @@ DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 VALID_STEP = 5
 RNG = 32
 EPOCHS = 10
+CHECKPOINT_STEP = 5
+CHECKPOINT_LOAD_PATH = None
+CHECKPOINT_SAVE_PATH = os.path.join('checkpoints', f'{RUN_NAME}.pt')
 INCLUDE_UNSURE = True
-
-SHOW_MODEL = False
-SHOW_SAMPLES = False
 
 torch.manual_seed(RNG)
 
@@ -36,28 +37,17 @@ valid_loader = DataLoader(valid_data, batch_size=1, shuffle=False, pin_memory=Fa
 model = UNet2d().to(DEVICE)
 loss_func = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr=LR)
-#scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max')
-
-if SHOW_MODEL:
-    images, labels = next(iter(train_loader))
-    x = images.to(DEVICE)
-
-    writer.add_graph(model, x)
-if SHOW_SAMPLES:
-    images, labels = next(iter(train_loader))
-    x = images.to(DEVICE)
-    y = labels.long().to(DEVICE)
-    logits = model(x)
-    loss = loss_func(logits, y)
-    grid = torchvision.utils.make_grid(images)
-    writer.add_image('images', grid, 0)
+scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max')
 
 for e in tqdm(range(EPOCHS)):
     if e % VALID_STEP == 0:
-        train_one_epoch(e, model, train_loader, loss_func, optimizer, writer=writer, device=DEVICE)
-        validate_one_epoch(e, model, valid_loader, loss_func, writer, device=DEVICE)
+        loss = train_one_epoch(e, model, train_loader, loss_func, optimizer, writer=writer, device=DEVICE)
+        val_loss, val_metric = validate_one_epoch(e, model, valid_loader, loss_func, writer, device=DEVICE)
     else:
-        train_one_epoch(e, model, train_loader, loss_func, optimizer, device=DEVICE)
+        loss = train_one_epoch(e, model, train_loader, loss_func, optimizer, device=DEVICE)
+    if e % CHECKPOINT_STEP == 0:
+        save_model_checkpoint(CHECKPOINT_SAVE_PATH, e, model, optimizer, loss, scheduler=scheduler, device=DEVICE)
     writer.add_scalar('gpu_memory_usage', torch.cuda.memory_allocated(DEVICE), global_step=e)
-    # scheduler.step(acc)
+    if scheduler:
+        scheduler.step(val_metric)
 writer.close()

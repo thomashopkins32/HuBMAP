@@ -237,3 +237,22 @@ def kaggle_prediction(image_id, logits):
         'width': 512,
         'prediction_string': prediction_string.strip()
     }
+
+
+def save_model_checkpoint(path, epoch, model, optimizer, loss, scheduler=None, device='cuda'):
+    checkpoint_dict = {
+        'epoch': epoch,
+        'model_state_dict': model.state_dict(),
+        'model_name': model.__name__,
+        'optimizer_state_dict': optimizer.state_dict(),
+        'optimizer_name': optimizer.__name__,
+        'training_loss': loss,
+        'device': device
+    }
+    if scheduler:
+        checkpoint_dict['scheduler_state_dict'] = scheduler.state_dict()
+        checkpoint_dict['scheduler_name'] = scheduler.__name__
+    else:
+        checkpoint_dict['scheduler_state_dict'] = None
+        checkpoint_dict['scheduler_name'] = ''
+    torch.save(checkpoint_dict, path)
