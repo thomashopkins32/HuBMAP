@@ -74,18 +74,42 @@ def test_mAP_imperfect_prediction():
     assert np.isclose(mAP(predictions, targets), 2.25 / 3)
 
 
-def test_softmax():
+def test_logits_to_blood_vessel_mask():
 
-    logits = torch.randn((5, 2, 512, 512))
+    logits = torch.randn((5, 3, 512, 512))
+    mask = logits_to_blood_vessel_mask(logits)
 
-    preds = torch.softmax(logits, dim=1)
+    assert mask.shape == (5, 512, 512)
+    assert mask.dtype == torch.long
 
-    assert preds.shape == (5, 2, 512, 512)
-    total = torch.sum(preds, dim=1)
-    assert total.shape == (5, 512, 512)
-    assert torch.allclose(total, torch.ones((5, 512, 512)))
+    logits = torch.zeros((1, 3, 512, 512), dtype=torch.float32)
+    # make a box of blood vessel predictions in the corner
+    logits[0, 2, 0:100, 0:100] = 1.0
+    # fill the rest of the predictions for the background
+    logits[0, 0, 100:, :] = 1.0
+    logits[0, 0, :, 100:] = 1.0
 
-    predictions = torch.argmax(preds, dim=1).type(torch.long)
+    # covert box to mask
+    mask = logits_to_blood_vessel_mask(logits)
 
-    assert predictions.shape == (5, 512, 512)
-    assert predictions.dtype == torch.long
+    assert mask.shape == (1, 512, 512)
+    assert mask.dtype == torch.long
+    assert torch.all(logits[0, 2, :, :].type(torch.bool) == mask.type(torch.bool))
+
+
+def test_kaggle_prediction():
+    test_tensor = torch.zeros((3, 512, 512))
+    test_tensor[2, 0:100, 0:100] = 1.0
+    test_tensor[0, 100:, :] = 1.0
+    test_tensor[0, :, 100:] = 1.0
+
+    prediction_entry = kaggle_prediction(1, test_tensor)
+
+    lead, prob, encoding = prediction_entry['prediction_string'].split(' ')
+
+    assert prediction_entry['id'] == 1
+    assert prediction_entry['height'] == 512
+    assert prediction_entry['width'] == 512
+    assert lead == '0'
+    assert prob == '0.5761168599128723'
+    assert encoding == 'eNozCDHOsTEYDiAgIM4MAPjlJ4Q='

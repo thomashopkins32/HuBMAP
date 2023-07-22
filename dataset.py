@@ -56,9 +56,10 @@ class HuBMAP(Dataset):
             if include_unsure and unsure_coords is not None and len(unsure_coords) > 0:
                 uns_coords = torch.tensor([item for sublist in unsure_coords for item in sublist])
                 mask[uns_coords[:, 1], uns_coords[:, 0]] = 2
-            bv_coords = torch.tensor([item for sublist in blood_vessel_coords for item in sublist])
-            # coordinates are (x, y) like a grid
-            mask[bv_coords[:, 1], bv_coords[:, 0]] = 2
+            if blood_vessel_coords is not None and len(blood_vessel_coords) > 0:
+                bv_coords = torch.tensor([item for sublist in blood_vessel_coords for item in sublist])
+                # coordinates are (x, y) like a grid
+                mask[bv_coords[:, 1], bv_coords[:, 0]] = 2
             self.masks.append(mask)
         print("Done.")
         # Set up image transformations
@@ -69,7 +70,7 @@ class HuBMAP(Dataset):
 
     def coordinates_to_mask(self, coordinates):
         if coordinates is None or coordinates == []:
-            return torch.zeros((self.img_size, self.img_size), dtype=torch.bool)
+            return torch.zeros((self.img_size, self.img_size), dtype=torch.long)
         coords = torch.tensor(coordinates)
         mask = torch.zeros((self.img_size, self.img_size), dtype=torch.bool)
         # coordinates are (x, y) like a grid
