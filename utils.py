@@ -163,7 +163,7 @@ def oid_mask_encoding(mask):
     using the competition page
     '''
     # check input mask --
-    if mask.dtype != np.bool:
+    if mask.dtype != bool:
         raise ValueError(
             "encode_binary_mask expects a binary mask, received dtype == %s" %
             mask.dtype)
@@ -188,12 +188,14 @@ def oid_mask_encoding(mask):
     return base64_str
 
 
-def kaggle_prediction(logits):
+def kaggle_prediction(image_id, logits):
     '''
     Encodes the raw output of the model into the submission format
     
     Parameters
     ----------
+    image_id : str
+        Identifier of the predicted image
     logits : torch.tensor
         Raw output of the model with shape (3, 512, 512)
     
@@ -207,17 +209,31 @@ def kaggle_prediction(logits):
     preds = torch.softmax(logits, dim=0)
 
     # convert blood vessel predictions to the mask
-    prediction = logits_to_blood_vessel_mask(logits)
+    prediction = logits_to_blood_vessel_mask(logits.unsqueeze(0)).squeeze().detach().cpu().numpy()
 
     # label predicted connected components
     pred_regions, pred_region_count = measure.label(prediction, return_num=True)
 
-    for p in len(pred_region_count):
+    prediction_string = ''
+    for p in range(1, pred_region_count + 1):
         # get the coordinates of the current region
+        x, y = np.where(pred_regions == p)
 
         # separate the binary mask
+        mask = np.zeros_like(pred_regions, dtype=bool)
+        mask[(x, y)] = True
 
         # encode the separated mask
+        encoding = oid_mask_encoding(mask)
 
         # average the prediction probabilities of the current region
-        pass
+        region_prob = torch.mean(preds[2, x, y])
+
+        prediction_string += f'0 {region_prob.item()} {encoding.decode("utf-8")} '
+    
+    return {
+        'id': image_id,
+        'height': 512,
+        'width': 512,
+        'prediction_string': prediction_string.strip()
+    }

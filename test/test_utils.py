@@ -96,7 +96,20 @@ def test_logits_to_blood_vessel_mask():
     assert mask.dtype == torch.long
     assert torch.all(logits[0, 2, :, :].type(torch.bool) == mask.type(torch.bool))
 
-    plt.imshow(logits[0, 2, :, :])
-    plt.show()
-    plt.imshow(mask[0, :, :])
-    plt.show()
+
+def test_kaggle_prediction():
+    test_tensor = torch.zeros((3, 512, 512))
+    test_tensor[2, 0:100, 0:100] = 1.0
+    test_tensor[0, 100:, :] = 1.0
+    test_tensor[0, :, 100:] = 1.0
+
+    prediction_entry = kaggle_prediction(1, test_tensor)
+
+    lead, prob, encoding = prediction_entry['prediction_string'].split(' ')
+
+    assert prediction_entry['id'] == 1
+    assert prediction_entry['height'] == 512
+    assert prediction_entry['width'] == 512
+    assert lead == '0'
+    assert prob == '0.5761168599128723'
+    assert encoding == 'eNozCDHOsTEYDiAgIM4MAPjlJ4Q='
