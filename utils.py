@@ -120,6 +120,8 @@ def logits_to_blood_vessel_mask(logits):
 
 
 def train_one_epoch(epoch, model, train_loader, loss_func, optimizer, writer=None, device='cpu', **kwargs):
+    total_loss = 0.0
+    data_size = len(train_loader)
     model.train()
     for d in train_loader:
         optimizer.zero_grad()
@@ -131,6 +133,7 @@ def train_one_epoch(epoch, model, train_loader, loss_func, optimizer, writer=Non
         loss = loss_func(logits, y)
         loss.backward()
         optimizer.step()
+        total_loss += loss.item()
         if writer:
             with torch.no_grad():
                 predictions = logits_to_blood_vessel_mask(logits)
@@ -138,10 +141,15 @@ def train_one_epoch(epoch, model, train_loader, loss_func, optimizer, writer=Non
                 mAP_value = mAP(predictions, blood_vessel_gt, **kwargs)
                 writer.add_scalar("Loss/train", loss.item(), global_step=epoch)
                 writer.add_scalar("mAP/train", mAP_value, global_step=epoch)
+    
+    return total_loss / data_size
 
 
 def validate_one_epoch(epoch, model, valid_loader, loss_func, writer, device='cpu', **kwargs):
     model.eval()
+    data_size = len(valid_loader)
+    total_loss = 0.0
+    total_mAP = 0.0
     with torch.no_grad():
         for i, d in enumerate(valid_loader):
             x = d['image']
@@ -155,6 +163,11 @@ def validate_one_epoch(epoch, model, valid_loader, loss_func, writer, device='cp
             mAP_value = mAP(predictions, blood_vessel_gt, **kwargs)
             writer.add_scalar("Loss/valid", loss.item(), global_step=epoch)
             writer.add_scalar("mAP/valid", mAP_value, global_step=epoch)
+            total_loss += loss.item()
+            total_mAP += mAP_value
+
+    return total_loss / data_size, total_mAP / data_size
+    
 
 
 def oid_mask_encoding(mask):
@@ -237,3 +250,27 @@ def kaggle_prediction(image_id, logits):
         'width': 512,
         'prediction_string': prediction_string.strip()
     }
+
+
+def save_model_checkpoint(path, epoch, model, optimizer, loss, scheduler=None):
+    checkpoint_dict = {
+        'epoch': epoch,
+        'model_state_dict': model.state_dict(),
+        'optimizer_state_dict': optimizer.state_dict(),
+        'training_loss': loss,
+    }
+    if scheduler:
+        checkpoint_dict['scheduler_state_dict'] = scheduler.state_dict()
+    else:
+        checkpoint_dict['scheduler_state_dict'] = None
+    torch.save(checkpoint_dict, path)
+
+
+def load_model_checkpoint(path, model, optimizer, scheduler=None):
+    checkpoint = torch.load(path)
+    epoch = checkpoint['epoch']
+    model.load_state_dict(checkpoint['model_state_dict'])
+    optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+    if scheduler and checkpoint['scheduler_state_dict']:
+        scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+    return epoch

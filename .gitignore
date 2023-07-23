@@ -161,6 +161,7 @@ cython_debug/
 
 data/
 runs/
+checkpoints/
 *.csv
 *.jsonl
 *.json

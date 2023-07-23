@@ -12,6 +12,7 @@ from models import *
 from utils import *
 
 # PARAMETERS
+RUN_NAME = 'tesing_run'
 BATCH_SIZE = 4
 LR = 1e-4
 WD = 0.0
@@ -19,15 +20,16 @@ MOMENTUM = 0.0
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 VALID_STEP = 5
 RNG = 32
-EPOCHS = 10
+EPOCH_START = 0
+EPOCH_END = 10
+CHECKPOINT_STEP = 1
+CHECKPOINT_LOAD_PATH = os.path.join('checkpoints', f'{RUN_NAME}.pt')
+CHECKPOINT_SAVE_PATH = os.path.join('checkpoints', f'{RUN_NAME}.pt')
 INCLUDE_UNSURE = True
-
-SHOW_MODEL = False
-SHOW_SAMPLES = False
 
 torch.manual_seed(RNG)
 
-writer = SummaryWriter(max_queue=1000, flush_secs=300)
+writer = SummaryWriter()
 dataset = HuBMAP(include_unsure=INCLUDE_UNSURE)
 generator = torch.Generator().manual_seed(RNG)
 train_data, valid_data = random_split(dataset, [0.9, 0.1], generator=generator)
@@ -36,28 +38,19 @@ valid_loader = DataLoader(valid_data, batch_size=1, shuffle=False, pin_memory=Fa
 model = UNet2d().to(DEVICE)
 loss_func = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr=LR)
-#scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max')
+scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max')
+if CHECKPOINT_LOAD_PATH:
+    EPOCH_START = load_model_checkpoint(CHECKPOINT_LOAD_PATH, model, optimizer, scheduler=scheduler) 
 
-if SHOW_MODEL:
-    images, labels = next(iter(train_loader))
-    x = images.to(DEVICE)
-
-    writer.add_graph(model, x)
-if SHOW_SAMPLES:
-    images, labels = next(iter(train_loader))
-    x = images.to(DEVICE)
-    y = labels.long().to(DEVICE)
-    logits = model(x)
-    loss = loss_func(logits, y)
-    grid = torchvision.utils.make_grid(images)
-    writer.add_image('images', grid, 0)
-
-for e in tqdm(range(EPOCHS)):
+for e in tqdm(range(EPOCH_START + 1, EPOCH_END + 1)):
     if e % VALID_STEP == 0:
-        train_one_epoch(e, model, train_loader, loss_func, optimizer, writer=writer, device=DEVICE)
-        validate_one_epoch(e, model, valid_loader, loss_func, writer, device=DEVICE)
+        loss = train_one_epoch(e, model, train_loader, loss_func, optimizer, writer=writer, device=DEVICE)
+        val_loss, val_metric = validate_one_epoch(e, model, valid_loader, loss_func, writer, device=DEVICE)
+        if scheduler:
+            scheduler.step(val_metric)
     else:
-        train_one_epoch(e, model, train_loader, loss_func, optimizer, device=DEVICE)
+        loss = train_one_epoch(e, model, train_loader, loss_func, optimizer, device=DEVICE)
+    if e % CHECKPOINT_STEP == 0:
+        save_model_checkpoint(CHECKPOINT_SAVE_PATH, e, model, optimizer, loss, scheduler=scheduler)
     writer.add_scalar('gpu_memory_usage', torch.cuda.memory_allocated(DEVICE), global_step=e)
-    # scheduler.step(acc)
 writer.close()

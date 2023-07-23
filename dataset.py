@@ -25,7 +25,7 @@ class HuBMAP(Dataset):
         self.images = []
         self.masks = [] # target structure
         print("Loading in images and converting annotations to polygon masks...")
-        for poly in tqdm(self.polygons):
+        for poly in tqdm(self.polygons[:10]):
             id = poly['id']
             # Get image using id
             image = Image.open(os.path.join(data_dir, 'train', f'{id}.tif'))
