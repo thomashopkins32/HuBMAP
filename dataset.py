@@ -3,6 +3,7 @@ import json
 
 import torch
 import torchvision.transforms as transforms
+import torchvision.transforms.functional as F
 from torch.utils.data import Dataset, DataLoader
 from PIL import Image
 from skimage.draw import polygon
@@ -15,6 +16,9 @@ class HuBMAP(Dataset):
     ''' Training dataset for the HuBMAP Kaggle Competition '''
     def __init__(self, data_dir=os.path.join('.', 'data'), submission=False, include_unsure=False):
         self.data_dir = data_dir
+        self.submission = submission
+        self.generator = torch.Generator()
+        self.generator.initial_seed(32)
         self.image_ids = []
         self.images = []
         self.masks = [] # target structure
@@ -79,10 +83,29 @@ class HuBMAP(Dataset):
                 self.images.append(image)
                 self.masks.append(torch.zeros((512, 512)))
 
-            self.transforms = transforms.Compose([
+            self.test_transforms = transforms.Compose([
                 transforms.ToTensor(),
                 transforms.Resize((512, 512), antialias=True)
             ])
+
+    def transform(self, image, mask):
+        image = F.to_tensor(image)
+        resize = transforms.Resize(size=(512, 512))
+        image = resize(image)
+
+        # horizontal flip
+        if torch.rand(1, generator=self.generator).item() > 0.5:
+            image = F.hflip(image)
+            mask = F.hflip(mask)
+
+        # vertical flip
+        if torch.rand(1, generator=self.generator).item() > 0.5:
+            image = F.vflip(image)
+            mask = F.vflip(image)
+
+        # TODO: random affine
+
+        return image, mask
 
     def coordinates_to_mask(self, coordinates):
         if coordinates is None or coordinates == []:
@@ -94,10 +117,15 @@ class HuBMAP(Dataset):
         return mask.type(torch.long)
 
     def __getitem__(self, i):
+        if self.submission:
+            image = self.test_transforms(self.images[i])
+            mask = self.masks[i]
+        else:
+            image, mask = self.transform(self.images[i], self.masks[i])
         return {
             'id': self.image_ids[i],
-            'image': self.transforms(self.images[i]),
-            'mask': self.masks[i],
+            'image': image,
+            'mask': mask,
         }
 
     def __len__(self):
