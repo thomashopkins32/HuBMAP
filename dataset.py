@@ -1,8 +1,10 @@
 import os
 import json
+from math import ceil, floor
 
 import torch
 import torchvision.transforms as transforms
+import torchvision.transforms.functional as F
 from torch.utils.data import Dataset, DataLoader
 from PIL import Image
 from skimage.draw import polygon
@@ -10,11 +12,16 @@ from tqdm import tqdm
 
 import matplotlib.pyplot as plt
 
+from utils import *
+
 
 class HuBMAP(Dataset):
     ''' Training dataset for the HuBMAP Kaggle Competition '''
     def __init__(self, data_dir=os.path.join('.', 'data'), submission=False, include_unsure=False):
         self.data_dir = data_dir
+        self.submission = submission
+        self.generator = torch.Generator()
+        self.generator.manual_seed(16)
         self.image_ids = []
         self.images = []
         self.masks = [] # target structure
@@ -66,11 +73,6 @@ class HuBMAP(Dataset):
                     mask[bv_coords[:, 1], bv_coords[:, 0]] = 2
                 self.masks.append(mask)
             print("Done.")
-            # Set up image transformations
-            self.transforms = transforms.Compose([
-                transforms.ToTensor(),
-                transforms.Resize((512, 512), antialias=True)
-            ])
         else:
             for image_file in os.listdir(os.path.join(data_dir, 'test')):
                 image = Image.open(os.path.join(data_dir, 'test', image_file))
@@ -79,10 +81,72 @@ class HuBMAP(Dataset):
                 self.images.append(image)
                 self.masks.append(torch.zeros((512, 512)))
 
-            self.transforms = transforms.Compose([
-                transforms.ToTensor(),
-                transforms.Resize((512, 512), antialias=True)
-            ])
+        self.test_transforms = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Resize((512, 512), antialias=True)
+        ])
+
+    def transform(self, image, mask):
+        image = F.to_tensor(image)
+        resize = transforms.Resize(size=(512, 512), antialias=True)
+        image = resize(image)
+        mask = mask.unsqueeze(0)
+
+        # horizontal flip
+        if torch.rand(1, generator=self.generator).item() > 0.5:
+            image = F.hflip(image)
+            mask = F.hflip(mask)
+
+        # vertical flip
+        if torch.rand(1, generator=self.generator).item() > 0.5:
+            image = F.vflip(image)
+            mask = F.vflip(mask)
+        
+        # random affine (fill in with white pixels)
+        # see https://github.com/thomashopkins32/HuBMAP/issues/6#issuecomment-1656778016
+        angle = 0 # no rotation (weird borders)
+        shear = 0 # no shear (weird borders)
+        horizontal_translation_factor = randrange(0.0, 0.03, generator=self.generator)
+        ht_min = ceil(-512 * horizontal_translation_factor)
+        ht_max = floor(512 * horizontal_translation_factor)
+        vertical_translation_factor = randrange(0.0, 0.03, generator=self.generator)
+        vt_min = ceil(-512 * vertical_translation_factor)
+        vt_max = floor(-512 * vertical_translation_factor)
+        if ht_min < ht_max:
+            horizontal_translation = torch.randint(
+                ht_min,
+                ht_max,
+                (1,),
+                generator=self.generator).item()
+        else:
+            horizontal_translation = 0
+        if vt_min < vt_max:
+            vertical_translation = torch.randint(
+                vt_min,
+                vt_max,
+                (1,),
+                generator=self.generator).item()
+        else:
+            vertical_translation = 0
+        translation = (horizontal_translation, vertical_translation)
+        scale = randrange(1.0, 1.1, generator=self.generator)
+        fill = 1.0
+        image = F.affine(image, angle, translation, scale, shear, fill=fill)
+        mask = F.affine(mask, angle, translation, scale, shear, fill=0)
+
+        # brightness
+        brightness_factor = randrange(0.8, 1.2, generator=self.generator)
+        image = F.adjust_brightness(image, brightness_factor)
+
+        # contrast
+        contrast_factor = randrange(0.8, 1.2, generator=self.generator)
+        image = F.adjust_contrast(image, contrast_factor)
+
+        # saturation
+        saturation_factor = randrange(0.8, 1.2, generator=self.generator)
+        image = F.adjust_saturation(image, saturation_factor)
+
+        return image, mask.squeeze()
 
     def coordinates_to_mask(self, coordinates):
         if coordinates is None or coordinates == []:
@@ -94,10 +158,21 @@ class HuBMAP(Dataset):
         return mask.type(torch.long)
 
     def __getitem__(self, i):
+        if self.submission:
+            image = self.test_transforms(self.images[i])
+            mask = self.masks[i]
+            transformed_image = image
+            transformed_mask = mask
+        else:
+            transformed_image, transformed_mask = self.transform(self.images[i], self.masks[i])
+            image = self.test_transforms(self.images[i])
+            mask = self.masks[i]
         return {
             'id': self.image_ids[i],
-            'image': self.transforms(self.images[i]),
-            'mask': self.masks[i],
+            'image': image,
+            'mask': mask,
+            'transformed_image': transformed_image,
+            'transformed_mask': transformed_mask.type(torch.long),
         }
 
     def __len__(self):
@@ -114,9 +189,9 @@ if __name__ == '__main__':
         print(f"Image: {d['image']}")
         print(f"Blood Vessel Shape: {d['mask'].shape}")
         print(f"Blood Vessel Masks: {d['mask']}")
-        if i % 5 == 0:
-            fig, (ax1, ax2) = plt.subplots(1, 2)
-            ax1.imshow(torch.permute(d['image'][0], (1, 2, 0)))
-            ax2.imshow(d['mask'][0])
-            plt.show()
-            break
+        fig, ax = plt.subplots(2, 2)
+        ax[0, 0].imshow(torch.permute(d['image'][0], (1, 2, 0)))
+        ax[1, 0].imshow(torch.permute(d['transformed_image'][0], (1, 2, 0)))
+        ax[0, 1].imshow(d['mask'][0])
+        ax[1, 1].imshow(d['transformed_mask'][0])
+        plt.show()
