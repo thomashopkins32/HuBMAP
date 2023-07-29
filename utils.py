@@ -8,6 +8,10 @@ import torch
 from tqdm import tqdm
 
 
+def randrange(min_value, max_value, generator=None):
+    return (max_value - min_value) * torch.rand(1, generator=generator).item() + min_value
+
+
 def accuracy(logits, labels):
     preds = torch.argmax(logits, dim=1)
     return torch.count_nonzero(preds == labels) / preds.shape[0]
@@ -119,14 +123,18 @@ def logits_to_blood_vessel_mask(logits):
     return (torch.argmax(torch.softmax(logits, dim=1), dim=1) == 2).type(torch.long)
 
 
-def train_one_epoch(epoch, model, train_loader, loss_func, optimizer, writer=None, device='cpu', **kwargs):
+def train_one_epoch(epoch, model, train_loader, loss_func, optimizer, writer=None, data_transforms=False, device='cpu', **kwargs):
     total_loss = 0.0
     data_size = len(train_loader)
     model.train()
     for d in train_loader:
         optimizer.zero_grad()
-        x = d['image']
-        y = d['mask']
+        if data_transforms:
+            x = d['transformed_image']
+            y = d['transformed_mask']
+        else:
+            x = d['image']
+            y = d['mask']
         x = x.to(device)
         y = y.to(device)
         logits = model(x)
@@ -145,15 +153,19 @@ def train_one_epoch(epoch, model, train_loader, loss_func, optimizer, writer=Non
     return total_loss / data_size
 
 
-def validate_one_epoch(epoch, model, valid_loader, loss_func, writer, device='cpu', **kwargs):
+def validate_one_epoch(epoch, model, valid_loader, loss_func, writer, data_transforms=False, device='cpu', **kwargs):
     model.eval()
     data_size = len(valid_loader)
     total_loss = 0.0
     total_mAP = 0.0
     with torch.no_grad():
         for i, d in enumerate(valid_loader):
-            x = d['image']
-            y = d['mask']
+            if data_transforms:
+                x = d['transformed_image']
+                y = d['transformed_mask']
+            else:
+                x = d['image']
+                y = d['mask']
             x = x.to(device)
             y = y.to(device)
             logits = model(x)
