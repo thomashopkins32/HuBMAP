@@ -1,10 +1,8 @@
 import torch
 import torch.optim as optim
 import torch.nn as nn
-import torchvision.models as models
 from torch.utils.data import DataLoader, random_split
 from torch.utils.tensorboard import SummaryWriter
-import torchvision
 from tqdm import tqdm
 
 from dataset import *
