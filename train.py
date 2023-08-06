@@ -10,11 +10,11 @@ from models import *
 from utils import *
 
 # PARAMETERS
-RUN_NAME = 'tesing_run'
+RUN_NAME = 'testing_run'
 BATCH_SIZE = 4
-LR = 1e-4
+LR = 1e-5
 WD = 0.0
-MOMENTUM = 0.0
+MOMENTUM = 0.99
 DATA_TRANSFORMATIONS = True
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 VALID_STEP = 5
@@ -36,7 +36,7 @@ train_loader = DataLoader(train_data, batch_size=BATCH_SIZE, shuffle=True, pin_m
 valid_loader = DataLoader(valid_data, batch_size=1, shuffle=False, pin_memory=False)
 model = UNet2d().to(DEVICE)
 loss_func = nn.CrossEntropyLoss()
-optimizer = optim.Adam(model.parameters(), lr=LR)
+optimizer = optim.SGD(model.parameters(), lr=LR, momentum=MOMENTUM, weight_decay=WD)
 scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max')
 if CHECKPOINT_LOAD_PATH:
     EPOCH_START = load_model_checkpoint(CHECKPOINT_LOAD_PATH, model, optimizer, scheduler=scheduler) 

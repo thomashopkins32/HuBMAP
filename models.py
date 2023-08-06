@@ -19,6 +19,11 @@ class ConvBlock(nn.Module):
             nn.BatchNorm2d(out_channels),
             nn.ReLU()
         )
+        self.apply(self._init_weights)
+
+    def _init_weights(self, module):
+        if isinstance(module, nn.Conv2d):
+            nn.init.xavier_normal_(module.weight)
 
     def forward(self, xx):
         return self.model(xx)
@@ -48,6 +53,12 @@ class UNet2d(nn.Module):
         self.upconv4 = nn.ConvTranspose2d(128, 64, kernel_size=2, stride=2)
         self.conv9 = ConvBlock(128, 64)
         self.conv_out = nn.Conv2d(64, 3, kernel_size=1)
+
+        self.apply(self._init_weights)
+
+    def _init_weights(self, module):
+        if isinstance(module, nn.Conv2d) or isinstance(module, nn.ConvTranspose2d):
+            nn.init.xavier_normal_(module.weight)
 
     def forward(self, xx):
         # Down
@@ -80,4 +91,4 @@ class UNet2d(nn.Module):
 if __name__ == '__main__':
     model = UNet2d()
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-    memory_usage_stats(model, optimizer, batch_size=4, device='cuda')
+    memory_usage_stats(model, optimizer, batch_size=4, device='cpu')
