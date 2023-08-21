@@ -11,7 +11,7 @@ from utils import *
 
 # PARAMETERS
 RUN_NAME = 'testing_run'
-BATCH_SIZE = 4
+BATCH_SIZE = 1
 LR = 1e-5
 WD = 0.0
 MOMENTUM = 0.99

@@ -101,35 +101,21 @@ class HuBMAP(Dataset):
         if torch.rand(1, generator=self.generator).item() > 0.5:
             image = F.vflip(image)
             mask = F.vflip(mask)
-        
+
+        # random elastic
+        alpha = 250.0
+        sigma = 10.0
+        elastic_displacement = transforms.ElasticTransform.get_params([alpha, alpha], [sigma, sigma], [512, 512])
+        image = F.elastic_transform(image, elastic_displacement)
+        mask = F.elastic_transform(mask, elastic_displacement)
+
         # random affine (fill in with white pixels)
         # see https://github.com/thomashopkins32/HuBMAP/issues/6#issuecomment-1656778016
-        angle = 0 # no rotation (weird borders)
-        shear = 0 # no shear (weird borders)
-        horizontal_translation_factor = randrange(0.0, 0.03, generator=self.generator)
-        ht_min = ceil(-512 * horizontal_translation_factor)
-        ht_max = floor(512 * horizontal_translation_factor)
-        vertical_translation_factor = randrange(0.0, 0.03, generator=self.generator)
-        vt_min = ceil(-512 * vertical_translation_factor)
-        vt_max = floor(-512 * vertical_translation_factor)
-        if ht_min < ht_max:
-            horizontal_translation = torch.randint(
-                ht_min,
-                ht_max,
-                (1,),
-                generator=self.generator).item()
-        else:
-            horizontal_translation = 0
-        if vt_min < vt_max:
-            vertical_translation = torch.randint(
-                vt_min,
-                vt_max,
-                (1,),
-                generator=self.generator).item()
-        else:
-            vertical_translation = 0
-        translation = (horizontal_translation, vertical_translation)
-        scale = randrange(1.0, 1.1, generator=self.generator)
+        degrees = [0.0, 360.0] # no rotation (weird borders)
+        translate = [0.05, 0.05]
+        scale_ranges = [1.0, 1.2]
+        shear = None # no shear (weird borders)
+        angle, translation, scale, shear = transforms.RandomAffine.get_params(degrees, translate, scale_ranges, shear, [512, 512])
         fill = 1.0
         image = F.affine(image, angle, translation, scale, shear, fill=fill)
         mask = F.affine(mask, angle, translation, scale, shear, fill=0)

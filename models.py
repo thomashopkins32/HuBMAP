@@ -52,6 +52,7 @@ class UNet2d(nn.Module):
         self.conv8 = ConvBlock(256, 128)
         self.upconv4 = nn.ConvTranspose2d(128, 64, kernel_size=2, stride=2)
         self.conv9 = ConvBlock(128, 64)
+        self.dropout = nn.Dropout2d(p=0.2)
         self.conv_out = nn.Conv2d(64, 3, kernel_size=1)
 
         self.apply(self._init_weights)
