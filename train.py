@@ -35,7 +35,7 @@ train_data, valid_data = random_split(dataset, [0.9, 0.1], generator=generator)
 train_loader = DataLoader(train_data, batch_size=BATCH_SIZE, shuffle=True, pin_memory=False)
 valid_loader = DataLoader(valid_data, batch_size=1, shuffle=False, pin_memory=False)
 model = UNet2d().to(DEVICE)
-loss_func = nn.CrossEntropyLoss()
+loss_func = nn.CrossEntropyLoss(weight=)
 optimizer = optim.SGD(model.parameters(), lr=LR, momentum=MOMENTUM, weight_decay=WD)
 scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max')
 if CHECKPOINT_LOAD_PATH:

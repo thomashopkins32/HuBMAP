@@ -1,6 +1,5 @@
 import os
 import json
-from math import ceil, floor
 
 import torch
 import torchvision.transforms as transforms
@@ -35,7 +34,7 @@ class HuBMAP(Dataset):
             # Load all of the training images and annotations into memory
             self.img_size = 512
             print("Loading in images and converting annotations to polygon masks...")
-            for poly in tqdm(self.polygons):
+            for poly in tqdm(self.polygons[:50]):
                 id = poly['id']
                 # Get image using id
                 image = Image.open(os.path.join(data_dir, 'train', f'{id}.tif'))
@@ -81,6 +80,22 @@ class HuBMAP(Dataset):
                 self.images.append(image)
                 self.masks.append(torch.zeros((512, 512)))
 
+        # get raw counts of classes for weight rescaling
+        bv_count = 0
+        glom_count = 0
+        bg_count = 0
+        for m in self.masks:
+            bv_count += torch.count_nonzero(m == 2).item()
+            glom_count += torch.count_nonzero(m == 1).item()
+            bg_count += torch.count_nonzero(m == 0).item()
+        total_count = bv_count + glom_count + bg_count
+        
+        self.weight_rescale = torch.tensor([
+            bv_count / total_count,
+            glom_count / total_count,
+            bg_count / total_count
+        ], dtype=torch.float)
+
         self.test_transforms = transforms.Compose([
             transforms.ToTensor(),
             transforms.Resize((512, 512), antialias=True)
@@ -103,34 +118,22 @@ class HuBMAP(Dataset):
             mask = F.vflip(mask)
 
         # random elastic
-        alpha = 250.0
-        sigma = 10.0
+        alpha = 50.0
+        sigma = 5.0
         elastic_displacement = transforms.ElasticTransform.get_params([alpha, alpha], [sigma, sigma], [512, 512])
         image = F.elastic_transform(image, elastic_displacement)
         mask = F.elastic_transform(mask, elastic_displacement)
 
         # random affine (fill in with white pixels)
         # see https://github.com/thomashopkins32/HuBMAP/issues/6#issuecomment-1656778016
-        degrees = [0.0, 360.0] # no rotation (weird borders)
-        translate = [0.05, 0.05]
-        scale_ranges = [1.0, 1.2]
+        degrees = [-25.0, 25.0] # no rotation (weird borders)
+        translate = [0.08, 0.08]
+        scale_ranges = [0.9, 1.3]
         shear = None # no shear (weird borders)
         angle, translation, scale, shear = transforms.RandomAffine.get_params(degrees, translate, scale_ranges, shear, [512, 512])
         fill = 1.0
         image = F.affine(image, angle, translation, scale, shear, fill=fill)
         mask = F.affine(mask, angle, translation, scale, shear, fill=0)
-
-        # brightness
-        brightness_factor = randrange(0.8, 1.2, generator=self.generator)
-        image = F.adjust_brightness(image, brightness_factor)
-
-        # contrast
-        contrast_factor = randrange(0.8, 1.2, generator=self.generator)
-        image = F.adjust_contrast(image, contrast_factor)
-
-        # saturation
-        saturation_factor = randrange(0.8, 1.2, generator=self.generator)
-        image = F.adjust_saturation(image, saturation_factor)
 
         return image, mask.squeeze()
 
