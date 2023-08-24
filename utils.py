@@ -124,6 +124,7 @@ def logits_to_blood_vessel_mask(logits):
 
 
 def train_one_epoch(epoch, model, train_loader, loss_func, optimizer, writer=None, data_transforms=False, device='cpu', **kwargs):
+    total_mAP = 0.0
     total_loss = 0.0
     data_size = len(train_loader)
     model.train()
@@ -147,10 +148,16 @@ def train_one_epoch(epoch, model, train_loader, loss_func, optimizer, writer=Non
                 predictions = logits_to_blood_vessel_mask(logits)
                 blood_vessel_gt = (y == 2).type(torch.long)
                 mAP_value = mAP(predictions, blood_vessel_gt, **kwargs)
-                writer.add_scalar("Loss/train", loss.item(), global_step=epoch)
-                writer.add_scalar("mAP/train", mAP_value, global_step=epoch)
+                total_mAP += mAP_value
     
-    return total_loss / data_size
+    avg_loss = total_loss / data_size
+    avg_mAP = total_mAP / data_size
+
+    if writer:
+        writer.add_scalar("Loss/train", avg_loss, global_step=epoch)
+        writer.add_scalar("mAP/train", avg_mAP, global_step=epoch)
+    
+    return avg_loss, avg_mAP
 
 
 def validate_one_epoch(epoch, model, valid_loader, loss_func, writer, data_transforms=False, device='cpu', **kwargs):
@@ -173,12 +180,15 @@ def validate_one_epoch(epoch, model, valid_loader, loss_func, writer, data_trans
             predictions = logits_to_blood_vessel_mask(logits)
             blood_vessel_gt = (y == 2).type(torch.long)
             mAP_value = mAP(predictions, blood_vessel_gt, **kwargs)
-            writer.add_scalar("Loss/valid", loss.item(), global_step=epoch)
-            writer.add_scalar("mAP/valid", mAP_value, global_step=epoch)
             total_loss += loss.item()
             total_mAP += mAP_value
 
-    return total_loss / data_size, total_mAP / data_size
+    avg_loss = total_loss / data_size
+    avg_mAP = total_mAP / data_size
+    writer.add_scalar("Loss/valid", avg_loss, global_step=epoch)
+    writer.add_scalar("mAP/valid", avg_mAP, global_step=epoch)
+
+    return avg_loss, avg_mAP
     
 
 

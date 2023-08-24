@@ -11,13 +11,13 @@ from utils import *
 
 # PARAMETERS
 RUN_NAME = 'testing_run'
-BATCH_SIZE = 1
+BATCH_SIZE = 4
 LR = 1e-5
 WD = 0.0
 MOMENTUM = 0.99
 DATA_TRANSFORMATIONS = True
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
-VALID_STEP = 5
+VALID_STEP = 1
 RNG = 32
 EPOCH_START = 0
 EPOCH_END = 10
@@ -38,7 +38,7 @@ print(f'Calculating weight rescaling from {len(train_data)} training points')
 bv_count = 0
 glom_count = 0
 bg_count = 0
-for batch in tqdm(train_data):
+for batch in tqdm(train_loader):
     m = batch['mask']
     bv_count += torch.count_nonzero(m == 2).item()
     glom_count += torch.count_nonzero(m == 1).item()
@@ -46,9 +46,9 @@ for batch in tqdm(train_data):
 total_count = bv_count + glom_count + bg_count
 
 weight_rescale = torch.tensor([
-    bv_count / total_count,
-    glom_count / total_count,
-    bg_count / total_count
+    total_count / (3 * bg_count),
+    total_count / (3 * glom_count),
+    total_count / (3 * bv_count)
 ], dtype=torch.float, device=DEVICE)
 print(f'Class rescaling will be done based on the following: {weight_rescale}')
 
