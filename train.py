@@ -27,15 +27,34 @@ CHECKPOINT_SAVE_PATH = os.path.join('checkpoints', f'{RUN_NAME}.pt')
 INCLUDE_UNSURE = True
 
 torch.manual_seed(RNG)
-
-writer = SummaryWriter()
 dataset = HuBMAP(include_unsure=INCLUDE_UNSURE)
 generator = torch.Generator().manual_seed(RNG)
 train_data, valid_data = random_split(dataset, [0.9, 0.1], generator=generator)
 train_loader = DataLoader(train_data, batch_size=BATCH_SIZE, shuffle=True, pin_memory=False)
 valid_loader = DataLoader(valid_data, batch_size=1, shuffle=False, pin_memory=False)
+
+print(f'Calculating weight rescaling from {len(train_data)} training points')
+# get raw counts of classes for weight rescaling
+bv_count = 0
+glom_count = 0
+bg_count = 0
+for batch in tqdm(train_data):
+    m = batch['mask']
+    bv_count += torch.count_nonzero(m == 2).item()
+    glom_count += torch.count_nonzero(m == 1).item()
+    bg_count += torch.count_nonzero(m == 0).item()
+total_count = bv_count + glom_count + bg_count
+
+weight_rescale = torch.tensor([
+    bv_count / total_count,
+    glom_count / total_count,
+    bg_count / total_count
+], dtype=torch.float, device=DEVICE)
+print(f'Class rescaling will be done based on the following: {weight_rescale}')
+
+writer = SummaryWriter()
 model = UNet2d().to(DEVICE)
-loss_func = nn.CrossEntropyLoss(weight=)
+loss_func = nn.CrossEntropyLoss(weight=weight_rescale)
 optimizer = optim.SGD(model.parameters(), lr=LR, momentum=MOMENTUM, weight_decay=WD)
 scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max')
 if CHECKPOINT_LOAD_PATH:

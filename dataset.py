@@ -15,7 +15,7 @@ from utils import *
 
 
 class HuBMAP(Dataset):
-    ''' Training dataset for the HuBMAP Kaggle Competition '''
+    ''' Dataset for the HuBMAP Kaggle Competition '''
     def __init__(self, data_dir=os.path.join('.', 'data'), submission=False, include_unsure=False):
         self.data_dir = data_dir
         self.submission = submission
@@ -79,22 +79,6 @@ class HuBMAP(Dataset):
                 self.image_ids.append(id)
                 self.images.append(image)
                 self.masks.append(torch.zeros((512, 512)))
-
-        # get raw counts of classes for weight rescaling
-        bv_count = 0
-        glom_count = 0
-        bg_count = 0
-        for m in self.masks:
-            bv_count += torch.count_nonzero(m == 2).item()
-            glom_count += torch.count_nonzero(m == 1).item()
-            bg_count += torch.count_nonzero(m == 0).item()
-        total_count = bv_count + glom_count + bg_count
-        
-        self.weight_rescale = torch.tensor([
-            bv_count / total_count,
-            glom_count / total_count,
-            bg_count / total_count
-        ], dtype=torch.float)
 
         self.test_transforms = transforms.Compose([
             transforms.ToTensor(),
