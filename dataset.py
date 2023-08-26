@@ -108,17 +108,6 @@ class HuBMAP(Dataset):
         image = F.elastic_transform(image, elastic_displacement)
         mask = F.elastic_transform(mask, elastic_displacement)
 
-        # random affine (fill in with white pixels)
-        # see https://github.com/thomashopkins32/HuBMAP/issues/6#issuecomment-1656778016
-        degrees = [-25.0, 25.0] # no rotation (weird borders)
-        translate = [0.08, 0.08]
-        scale_ranges = [0.9, 1.3]
-        shear = None # no shear (weird borders)
-        angle, translation, scale, shear = transforms.RandomAffine.get_params(degrees, translate, scale_ranges, shear, [512, 512])
-        fill = 1.0
-        image = F.affine(image, angle, translation, scale, shear, fill=fill)
-        mask = F.affine(mask, angle, translation, scale, shear, fill=0)
-
         return image, mask.squeeze()
 
     def coordinates_to_mask(self, coordinates):

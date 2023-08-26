@@ -12,7 +12,7 @@ from utils import *
 # PARAMETERS
 RUN_NAME = 'testing_run'
 BATCH_SIZE = 4
-LR = 1e-5
+LR = 1e-2
 WD = 0.0
 MOMENTUM = 0.99
 DATA_TRANSFORMATIONS = True
@@ -20,8 +20,8 @@ DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 VALID_STEP = 1
 RNG = 32
 EPOCH_START = 0
-EPOCH_END = 10
-CHECKPOINT_STEP = 1
+EPOCH_END = 200
+CHECKPOINT_STEP = 10
 CHECKPOINT_LOAD_PATH = None
 CHECKPOINT_SAVE_PATH = os.path.join('checkpoints', f'{RUN_NAME}.pt')
 INCLUDE_UNSURE = True
@@ -29,7 +29,7 @@ INCLUDE_UNSURE = True
 torch.manual_seed(RNG)
 dataset = HuBMAP(include_unsure=INCLUDE_UNSURE)
 generator = torch.Generator().manual_seed(RNG)
-train_data, valid_data = random_split(dataset, [0.9, 0.1], generator=generator)
+train_data, valid_data = random_split(dataset, [0.8, 0.2], generator=generator)
 train_loader = DataLoader(train_data, batch_size=BATCH_SIZE, shuffle=True, pin_memory=False)
 valid_loader = DataLoader(valid_data, batch_size=1, shuffle=False, pin_memory=False)
 
@@ -56,7 +56,8 @@ writer = SummaryWriter()
 model = UNet2d().to(DEVICE)
 loss_func = nn.CrossEntropyLoss(weight=weight_rescale)
 optimizer = optim.SGD(model.parameters(), lr=LR, momentum=MOMENTUM, weight_decay=WD)
-scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max')
+scheduler = None
+#scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max')
 if CHECKPOINT_LOAD_PATH:
     EPOCH_START = load_model_checkpoint(CHECKPOINT_LOAD_PATH, model, optimizer, scheduler=scheduler) 
 

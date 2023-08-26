@@ -83,10 +83,16 @@ def average_precision(prediction, target, iou_threshold=0.6):
     '''
     pred_regions, pred_region_count = measure.label(prediction, return_num=True)
     target_regions, target_region_count = measure.label(target, return_num=True)
+    if pred_region_count > 100: # no image has nearly this many annotations...
+        return 0.0
     true_positives = 0
     false_positives = 0
     for p in range(1, pred_region_count + 1):
         pred_region_mask = pred_regions == p
+        # If the pred_region does not overlap with any part of the target, skip it
+        if np.count_nonzero(np.logical_and(pred_region_mask, target)) == 0:
+            false_positives += 1
+            continue
         max_iou = 0.0
         for t in range(1, target_region_count + 1):
             target_region_mask = target_regions == t
