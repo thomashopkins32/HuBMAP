@@ -14,7 +14,7 @@ def randrange(min_value, max_value, generator=None):
 
 def accuracy(logits, labels):
     preds = torch.argmax(logits, dim=1)
-    return torch.count_nonzero(preds == labels) / preds.shape[0]
+    return (torch.count_nonzero(preds == labels, dim=1) / preds.shape[-1]) / preds.shape[0]
 
 
 def memory_usage_stats(model, optimizer, batch_size=1, device='cuda'):
@@ -129,8 +129,7 @@ def logits_to_blood_vessel_mask(logits):
     return (torch.argmax(torch.softmax(logits, dim=1), dim=1) == 2).type(torch.long)
 
 
-def train_one_epoch(epoch, model, train_loader, loss_func, optimizer, writer=None, data_transforms=False, device='cpu', **kwargs):
-    total_mAP = 0.0
+def train_one_epoch(epoch, model, train_loader, loss_func, optimizer, metric, writer=None, data_transforms=False, device='cpu', **kwargs):
     total_loss = 0.0
     data_size = len(train_loader)
     model.train()
@@ -151,26 +150,21 @@ def train_one_epoch(epoch, model, train_loader, loss_func, optimizer, writer=Non
         total_loss += loss.item()
         if writer:
             with torch.no_grad():
-                predictions = logits_to_blood_vessel_mask(logits)
-                blood_vessel_gt = (y == 2).type(torch.long)
-                mAP_value = mAP(predictions, blood_vessel_gt, **kwargs)
-                total_mAP += mAP_value
+                metric(logits, y)
     
     avg_loss = total_loss / data_size
-    avg_mAP = total_mAP / data_size
-
+    iou = metric.compute()
     if writer:
         writer.add_scalar("Loss/train", avg_loss, global_step=epoch)
-        writer.add_scalar("mAP/train", avg_mAP, global_step=epoch)
+        writer.add_scalar("IoU/train", iou, global_step=epoch)
     
-    return avg_loss, avg_mAP
+    return avg_loss, iou
 
 
-def validate_one_epoch(epoch, model, valid_loader, loss_func, writer, data_transforms=False, device='cpu', **kwargs):
+def validate_one_epoch(epoch, model, valid_loader, loss_func, metric, writer, data_transforms=False, device='cpu', **kwargs):
     model.eval()
     data_size = len(valid_loader)
     total_loss = 0.0
-    total_mAP = 0.0
     with torch.no_grad():
         for i, d in enumerate(valid_loader):
             if data_transforms:
@@ -183,18 +177,15 @@ def validate_one_epoch(epoch, model, valid_loader, loss_func, writer, data_trans
             y = y.to(device)
             logits = model(x)
             loss = loss_func(logits, y)
-            predictions = logits_to_blood_vessel_mask(logits)
-            blood_vessel_gt = (y == 2).type(torch.long)
-            mAP_value = mAP(predictions, blood_vessel_gt, **kwargs)
+            metric(logits, y)
             total_loss += loss.item()
-            total_mAP += mAP_value
 
+    iou = metric.compute()
     avg_loss = total_loss / data_size
-    avg_mAP = total_mAP / data_size
     writer.add_scalar("Loss/valid", avg_loss, global_step=epoch)
-    writer.add_scalar("mAP/valid", avg_mAP, global_step=epoch)
+    writer.add_scalar("IoU/valid", iou, global_step=epoch)
 
-    return avg_loss, avg_mAP
+    return avg_loss, iou
     
 
 

@@ -1,4 +1,5 @@
 from torch import tensor
+from torchmetrics.classification import MulticlassJaccardIndex
 import matplotlib.pyplot as plt
 from ..utils import *
 
@@ -52,7 +53,7 @@ def test_mAP_perfect_prediction():
 
 def test_mAP_imperfect_prediction():
 
-    # 5, 20x20 image masks
+    # 3, 20x20 image masks
     predictions = torch.zeros((3, 20, 20), dtype=torch.long)
     targets = torch.zeros((3, 20, 20), dtype=torch.long)
 
@@ -113,3 +114,22 @@ def test_kaggle_prediction():
     assert lead == '0'
     assert prob == '0.5761168599128723'
     assert encoding == 'eNozCDHOsTEYDiAgIM4MAPjlJ4Q='
+
+
+def test_jaccard_index():
+    # 3, 20x20 image masks
+    predictions = torch.zeros((3, 3, 20, 20), dtype=torch.float)
+    targets = torch.zeros((3, 20, 20), dtype=torch.long)
+
+    # single square per image
+    predictions[0, 2, 5:10, 5:10] = 1
+    targets[0, 9:10, 9:10] = 2 
+    predictions[1, 1, 2:3, 2:3] = 1
+    targets[1, 2:3, 2:3] = 1
+    predictions[2, 1, 1:10, 1:10] = 1
+    targets[2, 1:10, 1:10] = 1
+
+    metric = MulticlassJaccardIndex(num_classes=3, average='macro', validate_args=True)
+    out = metric(predictions, targets)
+    assert np.isclose(out.item(), 0.6728379726409912) 
+    

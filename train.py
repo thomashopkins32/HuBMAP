@@ -3,6 +3,7 @@ import torch.optim as optim
 import torch.nn as nn
 from torch.utils.data import DataLoader, random_split
 from torch.utils.tensorboard import SummaryWriter
+from torchmetrics.classification import MulticlassJaccardIndex
 from tqdm import tqdm
 
 from dataset import *
@@ -15,7 +16,7 @@ BATCH_SIZE = 4
 LR = 0.03
 WD = 0.0
 MOMENTUM = 0.95
-DATA_TRANSFORMATIONS = True
+DATA_TRANSFORMATIONS = False
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 VALID_STEP = 1
 RNG = 32
@@ -52,6 +53,10 @@ weight_rescale = torch.tensor([
 ], dtype=torch.float, device=DEVICE)
 print(f'Class rescaling will be done based on the following: {weight_rescale}')
 
+
+train_metric = MulticlassJaccardIndex(num_classes=3, average='macro').to(DEVICE)
+val_metric = MulticlassJaccardIndex(num_classes=3, average='macro').to(DEVICE)
+
 writer = SummaryWriter()
 model = UNet2d().to(DEVICE)
 loss_func = nn.CrossEntropyLoss(weight=weight_rescale)
@@ -69,15 +74,17 @@ for e in tqdm(range(EPOCH_START + 1, EPOCH_END + 1)):
             train_loader,
             loss_func,
             optimizer,
+            train_metric,
             writer=writer,
             data_transforms=DATA_TRANSFORMATIONS,
             device=DEVICE
         )
-        val_loss, val_metric = validate_one_epoch(
+        val_loss, metric = validate_one_epoch(
             e,
             model,
             valid_loader,
             loss_func,
+            val_metric,
             writer,
             data_transforms=False,
             device=DEVICE
@@ -96,5 +103,4 @@ for e in tqdm(range(EPOCH_START + 1, EPOCH_END + 1)):
         scheduler.step()
     if e % CHECKPOINT_STEP == 0:
         save_model_checkpoint(CHECKPOINT_SAVE_PATH, e, model, optimizer, loss, scheduler=scheduler)
-    writer.add_scalar('gpu_memory_usage', torch.cuda.memory_allocated(DEVICE), global_step=e)
 writer.close()
