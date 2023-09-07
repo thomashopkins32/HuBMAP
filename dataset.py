@@ -34,7 +34,7 @@ class HuBMAP(Dataset):
             # Load all of the training images and annotations into memory
             self.img_size = 512
             print("Loading in images and converting annotations to polygon masks...")
-            for poly in tqdm(self.polygons[:50]):
+            for poly in tqdm(self.polygons):
                 id = poly['id']
                 # Get image using id
                 image = Image.open(os.path.join(data_dir, 'train', f'{id}.tif'))
@@ -126,7 +126,9 @@ class HuBMAP(Dataset):
             transformed_image = image
             transformed_mask = mask
         else:
-            transformed_image, transformed_mask = self.transform(self.images[i], self.masks[i])
+            #transformed_image, transformed_mask = self.transform(self.images[i], self.masks[i])
+            transformed_image = self.test_transforms(self.images[i])
+            transformed_mask = self.masks[i]
             image = self.test_transforms(self.images[i])
             mask = self.masks[i]
         return {

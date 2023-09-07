@@ -147,18 +147,17 @@ def train_one_epoch(epoch, model, train_loader, loss_func, optimizer, metric, wr
         loss = loss_func(logits, y)
         loss.backward()
         optimizer.step()
-        total_loss += loss.item()
         if writer:
             with torch.no_grad():
+                total_loss += loss.item()
                 metric(logits, y)
     
-    avg_loss = total_loss / data_size
-    iou = metric.compute()
     if writer:
-        writer.add_scalar("Loss/train", avg_loss, global_step=epoch)
-        writer.add_scalar("IoU/train", iou, global_step=epoch)
-    
-    return avg_loss, iou
+        with torch.no_grad():
+            avg_loss = total_loss / data_size
+            iou = metric.compute()
+            writer.add_scalar("Loss/train", avg_loss, global_step=epoch)
+            writer.add_scalar("IoU/train", iou, global_step=epoch)
 
 
 def validate_one_epoch(epoch, model, valid_loader, loss_func, metric, writer, data_transforms=False, device='cpu', **kwargs):
@@ -271,12 +270,11 @@ def kaggle_prediction(image_id, logits):
     }
 
 
-def save_model_checkpoint(path, epoch, model, optimizer, loss, scheduler=None):
+def save_model_checkpoint(path, epoch, model, optimizer, scheduler=None):
     checkpoint_dict = {
         'epoch': epoch,
         'model_state_dict': model.state_dict(),
         'optimizer_state_dict': optimizer.state_dict(),
-        'training_loss': loss,
     }
     if scheduler:
         checkpoint_dict['scheduler_state_dict'] = scheduler.state_dict()

@@ -13,15 +13,15 @@ from utils import *
 # PARAMETERS
 RUN_NAME = 'testing_run'
 BATCH_SIZE = 4
-LR = 0.03
+LR = 0.1
 WD = 0.0
 MOMENTUM = 0.95
-DATA_TRANSFORMATIONS = False
+DATA_TRANSFORMATIONS = True
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 VALID_STEP = 1
 RNG = 32
 EPOCH_START = 0
-EPOCH_END = 200
+EPOCH_END = 100
 CHECKPOINT_STEP = 10
 CHECKPOINT_LOAD_PATH = None
 CHECKPOINT_SAVE_PATH = os.path.join('checkpoints', f'{RUN_NAME}.pt')
@@ -31,8 +31,8 @@ torch.manual_seed(RNG)
 dataset = HuBMAP(include_unsure=INCLUDE_UNSURE)
 generator = torch.Generator().manual_seed(RNG)
 train_data, valid_data = random_split(dataset, [0.8, 0.2], generator=generator)
-train_loader = DataLoader(train_data, batch_size=BATCH_SIZE, shuffle=True, pin_memory=False)
-valid_loader = DataLoader(valid_data, batch_size=BATCH_SIZE, shuffle=False, pin_memory=False)
+train_loader = DataLoader(train_data, batch_size=BATCH_SIZE, shuffle=True, pin_memory=False, num_workers=1)
+valid_loader = DataLoader(valid_data, batch_size=BATCH_SIZE, shuffle=False, pin_memory=False, num_workers=1)
 
 print(f'Calculating weight rescaling from {len(train_data)} training points')
 # get raw counts of classes for weight rescaling
@@ -61,14 +61,14 @@ writer = SummaryWriter()
 model = UNet2d().to(DEVICE)
 loss_func = nn.CrossEntropyLoss(weight=weight_rescale)
 optimizer = optim.SGD(model.parameters(), lr=LR, momentum=MOMENTUM, weight_decay=WD)
-scheduler = None
-scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[50, 100, 150], gamma=0.25)
+#scheduler = None
+scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, EPOCH_END, eta_min=1e-6, verbose=True)
 if CHECKPOINT_LOAD_PATH:
     EPOCH_START = load_model_checkpoint(CHECKPOINT_LOAD_PATH, model, optimizer, scheduler=scheduler) 
 
 for e in tqdm(range(EPOCH_START + 1, EPOCH_END + 1)):
     if e % VALID_STEP == 0:
-        loss = train_one_epoch(
+        train_one_epoch(
             e,
             model,
             train_loader,
@@ -90,17 +90,18 @@ for e in tqdm(range(EPOCH_START + 1, EPOCH_END + 1)):
             device=DEVICE
         )
     else:
-        loss = train_one_epoch(
+        train_one_epoch(
             e,
             model,
             train_loader,
             loss_func,
             optimizer, 
+            train_metric,
             data_transforms=DATA_TRANSFORMATIONS,
             device=DEVICE
         )
     if scheduler:
         scheduler.step()
     if e % CHECKPOINT_STEP == 0:
-        save_model_checkpoint(CHECKPOINT_SAVE_PATH, e, model, optimizer, loss, scheduler=scheduler)
+        save_model_checkpoint(CHECKPOINT_SAVE_PATH, e, model, optimizer, scheduler=scheduler)
 writer.close()
