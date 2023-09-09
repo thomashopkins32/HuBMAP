@@ -19,8 +19,6 @@ class HuBMAP(Dataset):
     def __init__(self, data_dir=os.path.join('.', 'data'), submission=False, include_unsure=False):
         self.data_dir = data_dir
         self.submission = submission
-        self.generator = torch.Generator()
-        self.generator.manual_seed(16)
         self.image_ids = []
         self.images = []
         self.masks = [] # target structure
@@ -92,12 +90,12 @@ class HuBMAP(Dataset):
         mask = mask.unsqueeze(0)
 
         # horizontal flip
-        if torch.rand(1, generator=self.generator).item() > 0.5:
+        if torch.rand(1).item() > 0.5:
             image = F.hflip(image)
             mask = F.hflip(mask)
 
         # vertical flip
-        if torch.rand(1, generator=self.generator).item() > 0.5:
+        if torch.rand(1).item() > 0.5:
             image = F.vflip(image)
             mask = F.vflip(mask)
 
@@ -127,10 +125,10 @@ class HuBMAP(Dataset):
             transformed_mask = mask
         else:
             #transformed_image, transformed_mask = self.transform(self.images[i], self.masks[i])
-            transformed_image = self.test_transforms(self.images[i])
-            transformed_mask = self.masks[i]
             image = self.test_transforms(self.images[i])
             mask = self.masks[i]
+            transformed_image = image
+            transformed_mask = mask
         return {
             'id': self.image_ids[i],
             'image': image,

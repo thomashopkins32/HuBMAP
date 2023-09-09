@@ -130,11 +130,10 @@ def logits_to_blood_vessel_mask(logits):
 
 
 def train_one_epoch(epoch, model, train_loader, loss_func, optimizer, metric, writer=None, data_transforms=False, device='cpu', **kwargs):
-    total_loss = 0.0
-    data_size = len(train_loader)
     model.train()
+    data_size = len(train_loader)
+    total_loss = 0.0
     for d in train_loader:
-        optimizer.zero_grad()
         if data_transforms:
             x = d['transformed_image']
             y = d['transformed_mask']
@@ -147,14 +146,14 @@ def train_one_epoch(epoch, model, train_loader, loss_func, optimizer, metric, wr
         loss = loss_func(logits, y)
         loss.backward()
         optimizer.step()
+        optimizer.zero_grad()
         if writer:
-            with torch.no_grad():
-                total_loss += loss.item()
-                metric(logits, y)
+            total_loss += loss.detach()
+            metric(logits.detach(), y.detach())
     
     if writer:
         with torch.no_grad():
-            avg_loss = total_loss / data_size
+            avg_loss = total_loss.item() / data_size
             iou = metric.compute()
             writer.add_scalar("Loss/train", avg_loss, global_step=epoch)
             writer.add_scalar("IoU/train", iou, global_step=epoch)
@@ -176,11 +175,11 @@ def validate_one_epoch(epoch, model, valid_loader, loss_func, metric, writer, da
             y = y.to(device)
             logits = model(x)
             loss = loss_func(logits, y)
-            metric(logits, y)
-            total_loss += loss.item()
+            metric(logits.detach(), y.detach())
+            total_loss += loss.detach()
 
     iou = metric.compute()
-    avg_loss = total_loss / data_size
+    avg_loss = total_loss.item() / data_size
     writer.add_scalar("Loss/valid", avg_loss, global_step=epoch)
     writer.add_scalar("IoU/valid", iou, global_step=epoch)
 
