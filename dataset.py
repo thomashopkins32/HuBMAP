@@ -124,11 +124,9 @@ class HuBMAP(Dataset):
             transformed_image = image
             transformed_mask = mask
         else:
-            #transformed_image, transformed_mask = self.transform(self.images[i], self.masks[i])
+            transformed_image, transformed_mask = self.transform(self.images[i], self.masks[i])
             image = self.test_transforms(self.images[i])
             mask = self.masks[i]
-            transformed_image = image
-            transformed_mask = mask
         return {
             'id': self.image_ids[i],
             'image': image,

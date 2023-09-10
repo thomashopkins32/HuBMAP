@@ -128,6 +128,8 @@ def mAP(predictions, targets, iou_threshold=0.6):
 def logits_to_blood_vessel_mask(logits):
     return (torch.argmax(torch.softmax(logits, dim=1), dim=1) == 2).type(torch.long)
 
+def logits_to_mask(logits):
+    return torch.argmax(torch.softmax(logits, dim=1), dim=1).type(torch.long)
 
 def train_one_epoch(epoch, model, train_loader, loss_func, optimizer, metric, writer=None, data_transforms=False, device='cpu', **kwargs):
     model.train()
